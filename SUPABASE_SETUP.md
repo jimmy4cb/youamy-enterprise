@@ -33,6 +33,8 @@ The webhook validates Flutterwave’s `verif-hash`, fetches the transaction from
 
 Order email/SMS notifications use Resend and Twilio when their credentials are set. Inquiry forms in the admin dashboard save records to the local admin database and send a Resend email to `INQUIRIES_EMAIL`; if email delivery is not configured or fails, the saved record remains visible with its delivery status and an explicit warning. Without order notification credentials, order state and in-app alerts still work, but external delivery is not sent.
 
+Vehicle inspections, property viewings and sanitation appointments are saved as requests in the local admin SQLite database. Customers select a date and preferred time; the request is not confirmed until staff follow up. The admin appointment list is available to super admins and support agents, and staff status changes are recorded in the activity log. Appointment emails use the same Resend settings and `INQUIRIES_EMAIL` as enquiries.
+
 ## Cancellation policy and receipts
 
 Clients can request cancellation from a paid order. A staff member must approve it and update the order status. Receipts are generated as PDFs only after payment is confirmed. Store product and payment secrets in the hosting provider’s environment settings, not in source control.
@@ -51,3 +53,4 @@ Clients can request cancellation from a paid order. A staff member must approve 
 - Replay a successful webhook. Confirm the unique provider transaction and database order lock leave one payment, one Placed transition, and one alert.
 - Sign in as a second client and request the first client’s `/orders/<id>` URL. The API must return 404 and no order data.
 - Verify payment and order mutations through the provider callback and admin status endpoint only; browser requests cannot write order/payment tables under RLS.
+- Request a vehicle inspection, property viewing and sanitation appointment. Confirm each appears in `/admin`, sends a team email when configured, and rejects past dates or invalid time choices.

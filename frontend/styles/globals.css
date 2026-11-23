@@ -120,10 +120,11 @@ button {
 }
 
 .brand-logo {
-  width: 72px;
-  height: 54px;
+  width: 74;
+  height: 54;
   flex: 0 0 auto;
   border-radius: 50%;
+  align-items: center;
   object-fit: contain;
 }
 
@@ -1298,34 +1299,38 @@ button {
   color: var(--red);
 }
 
-.map-placeholder {
-  min-height: 132px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
+.office-map {
+  overflow: hidden;
   margin-top: 23px;
-  border: 1px dashed #aab8ca;
-  border-radius: 5px;
-  background:
-    linear-gradient(30deg, transparent 48%, rgb(37 99 235 / 8%) 49%, rgb(37 99 235 / 8%) 51%, transparent 52%),
-    linear-gradient(150deg, #f3f6fa, #e6ecf3);
-  color: var(--navy);
+  border: 1px solid #d7e0eb;
+  border-radius: 7px;
 }
 
-.map-pin {
-  color: var(--red);
-  font-size: 23px;
+.office-map iframe {
+  width: 100%;
+  height: 190px;
+  display: block;
+  border: 0;
 }
 
-.map-placeholder strong {
-  font-size: 14px;
-}
-
-.map-placeholder > span:last-child {
-  color: var(--muted);
+.office-map > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
   font-size: 11px;
+}
+
+.office-map > div span {
+  color: var(--muted);
+}
+
+.office-map > div a {
+  color: var(--navy);
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .form-note {
@@ -2055,6 +2060,343 @@ button {
   }
 }
 
+.application-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.application-refresh {
+  min-height: 36px;
+  border: 1px solid #dce3ed;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 12px;
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.application-refresh:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.application-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 22px 4px;
+}
+
+.application-kpi {
+  display: grid;
+  gap: 7px;
+  min-height: 116px;
+  align-content: center;
+  border: 1px solid #e8edf3;
+  border-radius: 7px;
+  background: #fbfcfe;
+  padding: 16px;
+}
+
+.application-kpi > span,
+.application-kpi small {
+  color: #78869a;
+  font-size: 11px;
+}
+
+.application-kpi strong {
+  color: var(--navy);
+  font-size: 28px;
+  letter-spacing: -.04em;
+  line-height: 1;
+}
+
+.application-kpi small {
+  font-size: 10px;
+}
+
+.application-charts {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 12px;
+  padding: 14px 22px 22px;
+}
+
+.application-chart {
+  min-width: 0;
+  border: 1px solid #e8edf3;
+  border-radius: 7px;
+  background: #fff;
+  padding: 17px;
+}
+
+.application-chart-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.application-chart-heading h3,
+.application-records-heading h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.application-chart-heading p,
+.application-records-heading p {
+  margin: 5px 0 0;
+  color: #8995a5;
+  font-size: 10px;
+}
+
+.application-chart-heading > span {
+  color: #8995a5;
+  font-size: 10px;
+}
+
+.application-month-chart {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  min-height: 145px;
+}
+
+.application-month {
+  display: grid;
+  grid-template-rows: 18px 1fr 16px;
+  justify-items: center;
+  align-items: end;
+  gap: 5px;
+  height: 145px;
+  color: #8995a5;
+  font-size: 10px;
+}
+
+.application-month > strong {
+  color: #526179;
+  font-size: 10px;
+}
+
+.application-month-track {
+  display: flex;
+  align-items: end;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 4px 4px 0 0;
+  background: #f0f3f7;
+}
+
+.application-month-track > span {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: #1b7c71;
+}
+
+.application-status-list,
+.application-job-list {
+  display: grid;
+  gap: 15px;
+}
+
+.application-status-row > div:first-child,
+.application-job-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+  color: #526179;
+  font-size: 11px;
+}
+
+.application-status-row strong,
+.application-job-row b {
+  color: var(--navy);
+  font-size: 11px;
+}
+
+.application-status-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #f0f3f7;
+}
+
+.application-status-track > span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: #1b7c71;
+}
+
+.application-status-track > .status-reviewed {
+  background: #5076af;
+}
+
+.application-status-track > .status-shortlisted {
+  background: #c49321;
+}
+
+.application-status-track > .status-rejected {
+  background: #c76862;
+}
+
+.application-top-jobs {
+  grid-column: 1 / -1;
+}
+
+.application-job-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+}
+
+.application-job-row {
+  min-width: 0;
+}
+
+.application-job-row > div:first-child {
+  align-items: baseline;
+}
+
+.application-job-row strong {
+  overflow: hidden;
+  color: #526179;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-job-row > div:first-child span {
+  margin-left: auto;
+  color: #8995a5;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.application-job-row .application-status-track > span {
+  background: #5076af;
+}
+
+.application-no-data,
+.application-record-limit {
+  color: #8995a5;
+  font-size: 11px;
+}
+
+.application-records-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid #edf0f4;
+  padding: 20px 22px 14px;
+}
+
+.application-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.application-filters input,
+.application-filters select {
+  min-height: 38px;
+  max-width: 220px;
+  border: 1px solid #dce3ed;
+  border-radius: 6px;
+  background: white;
+  padding: 0 10px;
+  color: #526179;
+  font-size: 11px;
+}
+
+.application-record-limit {
+  margin: 0 22px 12px;
+}
+
+.application-error {
+  margin: 12px 22px 0;
+}
+
+@media (max-width: 900px) {
+  .application-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .application-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .application-top-jobs {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .application-header-actions,
+  .application-records-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .application-header-actions {
+    align-items: flex-start;
+  }
+
+  .application-overview {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .application-kpi {
+    min-height: 100px;
+    padding: 12px;
+  }
+
+  .application-kpi strong {
+    font-size: 24px;
+  }
+
+  .application-charts {
+    padding: 8px 12px 16px;
+  }
+
+  .application-job-list {
+    grid-template-columns: 1fr;
+  }
+
+  .application-records-heading {
+    padding: 16px 14px 12px;
+  }
+
+  .application-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .application-filters label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .application-filters input,
+  .application-filters select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .application-record-limit {
+    margin-inline: 14px;
+  }
+}
+
 .jobs-section {
   background: var(--canvas);
 }
@@ -2214,6 +2556,78 @@ button {
   background: linear-gradient(140deg, #dce5e7, #aabfc0);
 }
 
+.vehicle-photo {
+  position: relative;
+  min-height: 205px;
+  overflow: hidden;
+  background: #e8edf2;
+}
+
+.vehicle-photo img {
+  object-fit: cover;
+  transition: transform 300ms ease;
+}
+
+.market-card:hover .vehicle-photo img {
+  transform: scale(1.025);
+}
+
+.vehicle-photo .listing-status {
+  top: 12px;
+  right: 12px;
+  left: auto;
+  z-index: 2;
+}
+
+.vehicle-photo .photo-count {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  padding: 7px 9px;
+  border-radius: 4px;
+  background: rgb(15 30 48 / 88%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.photo-slider-button {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  width: 38px;
+  height: 38px;
+  transform: translateY(-50%);
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 50%;
+  background: rgb(15 30 48 / 78%);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 180ms ease, background 180ms ease;
+}
+
+.vehicle-photo:hover .photo-slider-button,
+.property-photo:hover .photo-slider-button,
+.photo-slider-button:focus-visible {
+  opacity: 1;
+}
+
+.photo-slider-button:hover {
+  background: rgb(15 30 48 / 94%);
+}
+
+.photo-slider-button.previous {
+  left: 12px;
+}
+
+.photo-slider-button.next {
+  right: 12px;
+}
+
 .property-image-1 {
   background: linear-gradient(140deg, #e8e4d8, #c7d0c4);
 }
@@ -2224,6 +2638,35 @@ button {
 
 .property-image-3 {
   background: linear-gradient(140deg, #e9e1d9, #c7b9aa);
+}
+
+.property-photo {
+  position: relative;
+  min-height: 205px;
+  overflow: hidden;
+  background: #e8edf2;
+}
+
+.property-photo img {
+  object-fit: cover;
+  transition: transform 300ms ease;
+}
+
+.market-card:hover .property-photo img {
+  transform: scale(1.025);
+}
+
+.property-photo .photo-count {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  padding: 7px 9px;
+  border-radius: 4px;
+  background: rgb(15 30 48 / 88%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .sample-image .photo-placeholder {
@@ -2400,6 +2843,10 @@ button {
 }
 
 @media (max-width: 600px) {
+  .photo-slider-button {
+    opacity: 1;
+  }
+
   .jobs-grid,
   .market-grid {
     grid-template-columns: 1fr;
@@ -4471,5 +4918,913 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .payment-spinner {
     animation: none;
+  }
+}
+
+.recruitment-banner {
+  margin: 0 0 32px;
+  border-radius: 0 0 14px 14px;
+  background: #151f49;
+  padding: 38px 40px;
+  color: white;
+}
+
+.recruitment-eyebrow {
+  margin: 0 0 8px;
+  color: #f0c400;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.recruitment-banner h2 {
+  margin: 0;
+  color: white;
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 850;
+  letter-spacing: -.04em;
+  line-height: 1.12;
+}
+
+.recruitment-banner > p:not(.recruitment-eyebrow) {
+  max-width: 760px;
+  margin: 12px 0 24px;
+  color: #e0e6f4;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.recruitment-country-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.recruitment-country-tabs button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: #303b63;
+  padding: 0 18px;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.recruitment-country-tabs button.active {
+  background: #e30613;
+}
+
+.recruitment-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+  border: 1px solid #e1e7f0;
+  border-radius: 12px;
+  background: white;
+  padding: 18px;
+  box-shadow: 0 2px 6px rgb(11 36 71 / 4%);
+}
+
+.recruitment-search,
+.recruitment-category {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d5deeb;
+  border-radius: 9px;
+  background: white;
+}
+
+.recruitment-search {
+  gap: 11px;
+  padding: 0 15px;
+}
+
+.recruitment-search svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  stroke: #98a7be;
+  stroke-width: 2;
+}
+
+.recruitment-search input,
+.recruitment-category select {
+  width: 100%;
+  min-width: 0;
+  height: 50px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--navy);
+  font-size: 14px;
+}
+
+.recruitment-search input::placeholder {
+  color: #8d9ab0;
+}
+
+.recruitment-category {
+  padding: 0 13px;
+}
+
+.recruitment-category select {
+  cursor: pointer;
+}
+
+.recruitment-job-list {
+  display: grid;
+  gap: 16px;
+}
+
+.recruitment-job-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 175px;
+  align-items: center;
+  gap: 26px;
+  border: 1px solid #e0e6ef;
+  border-radius: 13px;
+  background: white;
+  padding: 26px 30px;
+  box-shadow: 0 2px 5px rgb(11 36 71 / 4%);
+}
+
+.recruitment-job-card .job-card-top {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.recruitment-job-card .job-card-top > span,
+.job-category-chip,
+.job-openings-chip {
+  min-height: 29px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.recruitment-job-card .job-card-top > span:first-child {
+  background: #151f49;
+  color: white;
+}
+
+.job-category-chip {
+  background: #f1edff;
+  color: #5b21b6;
+}
+
+.job-openings-chip {
+  background: #fffce7;
+  color: #956200;
+}
+
+.recruitment-job-card h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.025em;
+  line-height: 1.3;
+}
+
+.recruitment-job-card .job-compensation {
+  margin: 10px 0 0;
+  color: #087c5a;
+  font-size: 15px;
+}
+
+.recruitment-job-card .job-requirements,
+.recruitment-job-card .job-benefits {
+  margin: 8px 0 0;
+  color: #596980;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.recruitment-job-card .job-requirements strong,
+.recruitment-job-card .job-benefits strong {
+  color: #3d4c63;
+}
+
+.recruitment-job-action {
+  display: grid;
+  justify-items: stretch;
+  gap: 9px;
+}
+
+.recruitment-job-action .button {
+  min-height: 54px;
+  justify-content: center;
+  border-radius: 12px;
+  background: #e30613;
+  font-size: 14px;
+}
+
+.recruitment-job-action > span {
+  color: #77849a;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.recruitment-empty {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  padding: 24px;
+  color: var(--muted);
+}
+
+.recruitment-all-jobs {
+  display: inline-flex;
+  margin-top: 21px;
+}
+
+.listing-schedule {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: white;
+}
+
+.listing-schedule:hover {
+  background: var(--navy-deep);
+}
+
+.listing-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.listing-actions .listing-contact {
+  min-height: 44px;
+}
+
+.sanitation-section {
+  background: #f5f7fb;
+  padding: 72px 0;
+}
+
+.sanitation-heading {
+  margin-bottom: 28px;
+}
+
+.sanitation-heading h2 {
+  margin: 0;
+  color: var(--navy);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 850;
+  letter-spacing: -.045em;
+  line-height: 1.1;
+}
+
+.sanitation-heading > p:last-child {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.sanitation-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, .9fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.sanitation-service-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sanitation-service-card {
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid #e0e6ef;
+  border-radius: 12px;
+  background: white;
+  padding: 0;
+}
+
+.sanitation-service-photo {
+  position: relative;
+  height: 140px;
+  overflow: hidden;
+  background: #e8edf2;
+}
+
+.sanitation-service-photo img {
+  object-fit: cover;
+  transition: transform 300ms ease;
+}
+
+.sanitation-service-card:hover .sanitation-service-photo img {
+  transform: scale(1.025);
+}
+
+.sanitation-service-content {
+  padding: 16px 18px 18px;
+}
+
+.sanitation-service-card h3 {
+  margin: 14px 0 0;
+  color: var(--navy);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.sanitation-service-card p {
+  margin: 9px 0 0;
+  color: #68768b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sanitation-emergency {
+  grid-column: 1 / -1;
+  border-radius: 12px;
+  background: #151f49;
+  padding: 22px 24px;
+  color: white;
+}
+
+.sanitation-emergency h3 {
+  margin: 0;
+  color: #f0c400;
+  font-size: 17px;
+}
+
+.sanitation-emergency p {
+  margin: 9px 0 0;
+  color: #e1e8f5;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sanitation-emergency a {
+  color: white;
+  font-weight: 800;
+}
+
+.sanitation-booking-panel {
+  min-width: 0;
+  border: 1px solid #e1e7f0;
+  border-radius: 14px;
+  background: white;
+  padding: 25px;
+  box-shadow: 0 3px 12px rgb(11 36 71 / 5%);
+}
+
+.appointment-form {
+  display: grid;
+  gap: 17px;
+}
+
+.appointment-form-heading h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -.025em;
+}
+
+.appointment-form-heading p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.appointment-target {
+  margin: -4px 0 0;
+  border-left: 3px solid var(--gold);
+  background: #f7f8fb;
+  padding: 10px 12px;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.appointment-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.appointment-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: #34445c;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.appointment-field-wide {
+  grid-column: 1 / -1;
+}
+
+.appointment-field input,
+.appointment-field select,
+.appointment-field textarea {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #d5deeb;
+  border-radius: 8px;
+  background: white;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.appointment-field textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.appointment-field input::placeholder,
+.appointment-field textarea::placeholder {
+  color: #9aa6b8;
+}
+
+.appointment-calendar {
+  border: 1px solid #e0e6ef;
+  border-radius: 10px;
+  background: #fbfcfe;
+  padding: 15px;
+}
+
+.appointment-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.appointment-calendar-head > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.appointment-calendar-head strong {
+  color: var(--navy);
+  font-size: 13px;
+}
+
+.appointment-calendar-head span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.appointment-month-controls {
+  display: flex;
+  gap: 5px;
+}
+
+.appointment-month-controls button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #dce3ed;
+  border-radius: 7px;
+  background: white;
+  color: var(--navy);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.appointment-month-controls button:disabled {
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+.appointment-month-label {
+  margin: 13px 0 9px;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.appointment-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.appointment-weekday {
+  min-height: 25px;
+  display: grid;
+  place-items: center;
+  color: #8793a7;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.appointment-day {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.appointment-day:hover:not(:disabled),
+.appointment-day[aria-pressed="true"] {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: white;
+}
+
+.appointment-day:disabled {
+  cursor: not-allowed;
+  color: #bec7d3;
+}
+
+.appointment-selected-date {
+  margin: 10px 0 0;
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.appointment-time-picker {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.appointment-time-picker legend {
+  margin-bottom: 9px;
+  color: #34445c;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.appointment-time-picker > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.appointment-time-picker button {
+  min-height: 40px;
+  border: 1px solid #d5deeb;
+  border-radius: 7px;
+  background: white;
+  padding: 0 12px;
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.appointment-time-picker button.selected {
+  border-color: var(--navy);
+  background: #edf1f8;
+  box-shadow: inset 0 0 0 1px var(--navy);
+}
+
+.appointment-time-picker button:disabled {
+  cursor: not-allowed;
+  background: #f0f2f5;
+  color: #a4afbd;
+}
+
+.appointment-open-scheduler {
+  min-height: 44px;
+  border: 1px solid #cfd8e6;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.location-picker {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.location-picker-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.location-picker-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.location-picker-heading strong {
+  color: #34445c;
+  font-size: 13px;
+}
+
+.location-picker-heading span,
+.location-picker-coordinates {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.location-picker-heading button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border: 1px solid #cfd8e6;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.location-picker-map {
+  z-index: 0;
+  height: 280px;
+  overflow: hidden;
+  border: 1px solid #d7e0eb;
+  border-radius: 9px;
+  background: #e8edf2;
+}
+
+.location-map-pin-icon {
+  border: 0;
+  background: transparent;
+}
+
+.location-map-pin {
+  position: relative;
+  display: block;
+  width: 23px;
+  height: 23px;
+  transform: rotate(-45deg);
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  background: #d33b36;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+}
+
+.location-map-pin::after {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: white;
+  content: "";
+}
+
+.location-picker-coordinates {
+  margin: 0;
+}
+
+.location-picker-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+}
+
+.job-application-dialog {
+  width: min(760px, 100%);
+}
+
+.job-application-file-help {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.appointment-submit-row {
+  display: flex;
+  gap: 9px;
+}
+
+.appointment-submit,
+.appointment-cancel {
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 17px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.appointment-submit {
+  flex: 1;
+  background: #079669;
+  color: white;
+}
+
+.appointment-submit:hover:not(:disabled) {
+  background: #087a59;
+}
+
+.appointment-submit:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.appointment-cancel {
+  border: 1px solid #d5deeb;
+  background: white;
+  color: var(--navy);
+}
+
+.appointment-error,
+.appointment-success {
+  margin: 0;
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.appointment-error {
+  background: #fff0f0;
+  color: #a5161c;
+}
+
+.appointment-success {
+  background: #eaf8f1;
+  color: #086c4c;
+}
+
+.appointment-dialog-backdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: rgb(7 20 44 / 68%);
+  padding: 24px;
+}
+
+.appointment-dialog {
+  position: relative;
+  width: min(660px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: auto;
+  border-radius: 14px;
+  background: white;
+  padding: 30px;
+  box-shadow: 0 24px 70px rgb(4 14 32 / 30%);
+}
+
+.appointment-dialog-close {
+  position: absolute;
+  top: 13px;
+  right: 14px;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #dbe2eb;
+  border-radius: 50%;
+  background: white;
+  color: var(--navy);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.admin-appointment-status {
+  min-height: 38px;
+  border: 1px solid #dce3ed;
+  border-radius: 6px;
+  background: white;
+  padding: 0 8px;
+  color: var(--navy);
+  font-size: 11px;
+}
+
+.admin-appointments .admin-table td a {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+@media (max-width: 820px) {
+  .recruitment-job-card {
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .sanitation-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sanitation-booking-panel {
+    max-width: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .recruitment-banner {
+    margin-bottom: 17px;
+    border-radius: 0 0 10px 10px;
+    padding: 28px 20px;
+  }
+
+  .recruitment-banner > p:not(.recruitment-eyebrow) {
+    font-size: 14px;
+  }
+
+  .recruitment-country-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-right: -20px;
+    padding: 0 20px 4px 0;
+  }
+
+  .recruitment-country-tabs button {
+    flex: 0 0 auto;
+  }
+
+  .recruitment-filters {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    margin-bottom: 17px;
+    padding: 11px;
+  }
+
+  .recruitment-search,
+  .recruitment-category,
+  .recruitment-category select {
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .recruitment-job-card {
+    grid-template-columns: 1fr;
+    gap: 17px;
+    padding: 19px;
+  }
+
+  .recruitment-job-card h3 {
+    font-size: 19px;
+  }
+
+  .recruitment-job-action {
+    justify-items: stretch;
+  }
+
+  .recruitment-job-action > span {
+    text-align: left;
+  }
+
+  .sanitation-section {
+    padding: 50px 0;
+  }
+
+  .sanitation-service-list {
+    grid-template-columns: 1fr;
+  }
+
+  .sanitation-service-card {
+    min-height: auto;
+  }
+
+  .sanitation-booking-panel {
+    padding: 18px;
+  }
+
+  .location-picker-map {
+    height: 240px;
+  }
+
+  .appointment-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-field-wide {
+    grid-column: auto;
+  }
+
+  .appointment-day {
+    min-height: 40px;
+  }
+
+  .appointment-dialog-backdrop {
+    align-items: start;
+    padding: 12px;
+  }
+
+  .appointment-dialog {
+    max-height: calc(100dvh - 24px);
+    padding: 58px 18px 20px;
   }
 }

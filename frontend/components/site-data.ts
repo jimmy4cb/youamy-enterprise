@@ -9,6 +9,8 @@ export const company = {
   website: "youamyenterprises.com",
 };
 
+export const officeCoordinates = { latitude: -4.0435, longitude: 39.6682 };
+
 export type JobListing = {
   title: string;
   destination: string;
@@ -16,7 +18,12 @@ export type JobListing = {
   compensation: string;
   requirements: string;
   deadline: string;
-  role: "Driver" | "Hospitality" | "Healthcare";
+  role:
+    | "Driver"
+    | "Hospitality"
+    | "Healthcare"
+    | "Construction & Engineering"
+    | "Security Services";
 };
 
 export type VehicleListing = {
@@ -28,6 +35,7 @@ export type VehicleListing = {
   year: string;
   details: string;
   location: string;
+  imageUrls: string[];
 };
 
 export type PropertyListing = {
@@ -37,6 +45,7 @@ export type PropertyListing = {
   type: "Home" | "Apartment" | "Short stay" | "Commercial";
   location: string;
   price: string;
+  imageUrls: string[];
 };
 
 export type SanitationListing = {
@@ -106,6 +115,24 @@ export const jobListings: JobListing[] = [
     deadline: "2026-12-20",
     role: "Healthcare",
   },
+  {
+    title: "Civil & MEP Construction Technicians",
+    destination: "Oman · Muscat",
+    openings: "30 Openings",
+    compensation: "OMR 220 + Overtime",
+    requirements: "Trade test certificate in Electrical, Plumbing, or Masonry; physical fitness.",
+    deadline: "2026-12-18",
+    role: "Construction & Engineering",
+  },
+  {
+    title: "Corporate Security Guards",
+    destination: "Kuwait · Kuwait City",
+    openings: "20 Openings",
+    compensation: "KWD 160 + Accommodation",
+    requirements: "Minimum height 5ft 8in, KCSE certificate, fluent English, clean criminal record.",
+    deadline: "2026-12-25",
+    role: "Security Services",
+  },
 ];
 
 export const vehicleListings: VehicleListing[] = [
@@ -118,6 +145,10 @@ export const vehicleListings: VehicleListing[] = [
     year: "2019",
     details: "54,000 km · Automatic · Diesel",
     location: "Kenya",
+    imageUrls: [
+      "/vehicles/2019-toyota-land-cruiser-prado-tx-l-1.jpg",
+      "/vehicles/2019-toyota-land-cruiser-prado-tx-l-2.jpg",
+    ],
   },
   {
     id: "mercedes-benz-c200",
@@ -128,6 +159,10 @@ export const vehicleListings: VehicleListing[] = [
     year: "2020",
     details: "38,500 km · Automatic · Petrol",
     location: "Kenya",
+    imageUrls: [
+      "/vehicles/2020-mercedes-benz-c200-amg-line-1.jpg",
+      "/vehicles/2020-mercedes-benz-c200-amg-line-2.jpg",
+    ],
   },
   {
     id: "isuzu-frr-90",
@@ -138,6 +173,10 @@ export const vehicleListings: VehicleListing[] = [
     year: "2018",
     details: "112,000 km · Manual · Diesel",
     location: "Kenya",
+    imageUrls: [
+      "/vehicles/2018-isuzu-frr-90-commercial-truck-1.jpg",
+      "/vehicles/2018-isuzu-frr-90-commercial-truck-2.jpg",
+    ],
   },
 ];
 
@@ -149,6 +188,7 @@ export const propertyListings: PropertyListing[] = [
     type: "Home",
     location: "Nyali, Mombasa",
     price: "Ksh 32,000,000",
+    imageUrls: ["/properties/modern-4-bedroom-villa-dsq.jpg"],
   },
   {
     id: "kilimani-apartment",
@@ -157,6 +197,11 @@ export const propertyListings: PropertyListing[] = [
     type: "Apartment",
     location: "Kilimani, Nairobi",
     price: "Ksh 85,000 / mo",
+    imageUrls: [
+      "/properties/executive-2-bedroom-apartment-1.jpg",
+      "/properties/executive-2-bedroom-apartment-2.jpg",
+      "/properties/executive-2-bedroom-apartment-3.jpg",
+    ],
   },
   {
     id: "mombasa-road-warehouse",
@@ -165,6 +210,11 @@ export const propertyListings: PropertyListing[] = [
     type: "Commercial",
     location: "Mombasa Road, Nairobi",
     price: "Ksh 450,000 / mo",
+    imageUrls: [
+      "/properties/warehouse-office-block-1.jpg",
+      "/properties/warehouse-office-block-2.jpg",
+      "/properties/warehouse-office-block-3.jpg",
+    ],
   },
 ];
 

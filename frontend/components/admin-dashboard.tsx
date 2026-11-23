@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import AdminInquiries from "@/components/admin-inquiries";
+import AdminAppointments from "@/components/admin-appointments";
+import AdminJobApplications from "@/components/admin-job-applications";
 
 type Division = "Jobs" | "Vehicles" | "Real Estate" | "Sanitation";
 
@@ -55,7 +57,7 @@ const initialListings: Listing[] = [
   { id: 4, title: "Exhauster septic cleaning", division: "Sanitation", detail: "Mombasa / Nairobi Corridor", status: "Published", updated: "1 week ago" },
 ];
 
-function Icon({ name }: { name: "grid" | "briefcase" | "car" | "home" | "droplet" | "message" | "settings" | "plus" | "search" | "logout" }) {
+function Icon({ name }: { name: "grid" | "briefcase" | "car" | "home" | "droplet" | "message" | "calendar" | "settings" | "plus" | "search" | "logout" }) {
   const paths = {
     grid: "M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z",
     briefcase: "M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 8h18v11H3V8Zm8 4h2",
@@ -63,6 +65,7 @@ function Icon({ name }: { name: "grid" | "briefcase" | "car" | "home" | "droplet
     home: "M3 11l9-8 9 8M5 10v11h14V10M9 21v-6h6v6",
     droplet: "M12 2s7 8 7 13a7 7 0 1 1-14 0c0-5 7-13 7-13Z",
     message: "M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z",
+    calendar: "M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Zm3 8h3m-3 3h3m3-3h2",
     settings: "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 1.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.1h-2.6v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L7.6 17l.1-.1A1.7 1.7 0 0 0 8 15a1.7 1.7 0 0 0-1.5-1H6.4v-2.6h.1A1.7 1.7 0 0 0 8 10.3a1.7 1.7 0 0 0-.3-1.9l-.1-.1L9.4 6.5l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.1H15v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.8 1.8-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1V14h-.1A1.7 1.7 0 0 0 19.4 15Z",
     plus: "M12 5v14M5 12h14",
     search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm5-3 5 5",
@@ -357,6 +360,12 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
           {["super_admin", "support_agent"].includes(user.role) && (
             <a className="admin-nav-item" href="#enquiries"><Icon name="message" /> Enquiries</a>
           )}
+          {["super_admin", "support_agent"].includes(user.role) && (
+            <a className="admin-nav-item" href="#appointments"><Icon name="calendar" /> Appointments</a>
+          )}
+          {["super_admin", "support_agent"].includes(user.role) && (
+            <a className="admin-nav-item" href="#job-applications"><Icon name="briefcase" /> Applications</a>
+          )}
           {user.role === "super_admin" && (
             <button className="admin-nav-item" onClick={() => { openStaff(); setShowStaffForm(true); }} type="button">
               <Icon name="settings" /> Staff
@@ -578,7 +587,13 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
             </section>
           )}
 
-          {["super_admin", "support_agent"].includes(user.role) && <AdminInquiries />}
+          {["super_admin", "support_agent"].includes(user.role) && (
+            <>
+              <AdminJobApplications />
+              <AdminInquiries />
+              <AdminAppointments />
+            </>
+          )}
         </div>
       </section>
 

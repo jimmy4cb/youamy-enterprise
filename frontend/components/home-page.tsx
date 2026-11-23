@@ -2,13 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import ProductBrowser from "@/components/product-browser";
+import AppointmentBooking, { type AppointmentType } from "@/components/appointment-booking";
 import {
   company,
   divisions,
   emailLink,
   jobListings,
+  officeCoordinates,
   propertyListings,
   vehicleListings,
   whatsappLink,
@@ -25,6 +27,52 @@ const navigation = [
   ["About", "#about"],
   ["Contact", "#contact"],
 ];
+
+function PhotoSlider({
+  imageUrls,
+  alt,
+  status,
+  className,
+}: {
+  imageUrls: string[];
+  alt: string;
+  status: string;
+  className: string;
+}) {
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const previousPhoto = () => {
+    setPhotoIndex((current) => (current - 1 + imageUrls.length) % imageUrls.length);
+  };
+  const nextPhoto = () => {
+    setPhotoIndex((current) => (current + 1) % imageUrls.length);
+  };
+
+  return (
+    <div className={className}>
+      <Image
+        src={imageUrls[photoIndex]}
+        alt={`${alt} photo ${photoIndex + 1}`}
+        fill
+        unoptimized
+        sizes="(max-width: 700px) 100vw, 33vw"
+      />
+      {imageUrls.length > 1 && (
+        <>
+          <button type="button" className="photo-slider-button previous" onClick={previousPhoto} aria-label={`Previous photo of ${alt}`}>
+            ‹
+          </button>
+          <button type="button" className="photo-slider-button next" onClick={nextPhoto} aria-label={`Next photo of ${alt}`}>
+            ›
+          </button>
+          <span className="photo-count" aria-label={`Photo ${photoIndex + 1} of ${imageUrls.length}`}>
+            {photoIndex + 1} / {imageUrls.length}
+          </span>
+        </>
+      )}
+      <span className="listing-status">{status}</span>
+    </div>
+  );
+}
 
 function DivisionGlyph({ id }: { id: DivisionId }) {
   const paths: Record<DivisionId, string> = {
@@ -44,6 +92,36 @@ function DivisionGlyph({ id }: { id: DivisionId }) {
 export default function HomePage() {
   const [dialog, setDialog] = useState<DialogType>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [jobSearch, setJobSearch] = useState("");
+  const [jobCountry, setJobCountry] = useState("All Gulf Countries");
+  const [jobCategory, setJobCategory] = useState("All Job Categories");
+  const [appointment, setAppointment] = useState<{
+    serviceType: AppointmentType;
+    target: string;
+  } | null>(null);
+  const [jobApplication, setJobApplication] = useState<{
+    title: string;
+    destination: string;
+  } | null>(null);
+  const [applicationBusy, setApplicationBusy] = useState(false);
+  const [applicationError, setApplicationError] = useState("");
+  const [applicationNotice, setApplicationNotice] = useState("");
+  const jobCountries = useMemo(
+    () => ["All Gulf Countries", ...new Set(jobListings.map((job) => job.destination.split(" · ")[0]))],
+    [],
+  );
+  const jobCategories = useMemo(
+    () => ["All Job Categories", ...new Set(jobListings.map((job) => job.role))],
+    [],
+  );
+  const filteredJobs = useMemo(() => jobListings.filter((job) => {
+    const matchesCountry = jobCountry === "All Gulf Countries" || job.destination.startsWith(jobCountry);
+    const matchesCategory = jobCategory === "All Job Categories" || job.role === jobCategory;
+    const matchesSearch = `${job.title} ${job.destination} ${job.requirements}`
+      .toLowerCase()
+      .includes(jobSearch.trim().toLowerCase());
+    return matchesCountry && matchesCategory && matchesSearch;
+  }), [jobCategory, jobCountry, jobSearch]);
 
   function submitEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,6 +136,31 @@ export default function HomePage() {
     ].join(" ");
 
     window.location.assign(whatsappLink(message));
+  }
+
+  async function submitJobApplication(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!jobApplication) return;
+    setApplicationBusy(true);
+    setApplicationError("");
+    setApplicationNotice("");
+    const formData = new FormData(event.currentTarget);
+    formData.set("jobTitle", jobApplication.title);
+    formData.set("destination", jobApplication.destination);
+    try {
+      const response = await fetch("/api/job-applications", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not submit your application.");
+      setApplicationNotice(result.notice);
+      event.currentTarget.reset();
+    } catch (reason) {
+      setApplicationError(reason instanceof Error ? reason.message : "Could not submit your application.");
+    } finally {
+      setApplicationBusy(false);
+    }
   }
 
   return (
@@ -216,47 +319,96 @@ export default function HomePage() {
 
       <section className="featured-section jobs-section" id="jobs">
         <div className="site-container">
-          <div className="section-heading featured-heading">
-            <div>
-              <p className="section-kicker">International careers</p>
-              <h2>Featured Gulf Job Openings</h2>
-              <p className="section-description">
-                Direct placements to Saudi Arabia, Qatar, UAE, Oman and Kuwait
-                with live visa tracking.
-              </p>
+          <div className="recruitment-banner">
+            <p className="recruitment-eyebrow">Overseas manpower placement</p>
+            <h2>Gulf Recruitment Portal</h2>
+            <p>Apply for verified jobs across Saudi Arabia, Qatar, UAE, Oman and Kuwait. Our team will guide you through the application and visa process.</p>
+            <div className="recruitment-country-tabs" aria-label="Filter jobs by country">
+              {jobCountries.map((country) => (
+                <button
+                  type="button"
+                  className={jobCountry === country ? "active" : ""}
+                  aria-pressed={jobCountry === country}
+                  key={country}
+                  onClick={() => setJobCountry(country)}
+                >
+                  {country}
+                </button>
+              ))}
             </div>
-            <a className="text-link" href="#contact">
-              Ask about jobs <span aria-hidden="true">→</span>
-            </a>
           </div>
 
-          <div className="jobs-grid">
-            {jobListings.map((listing) => (
-              <article className="job-card" key={listing.title}>
-                <div className="job-card-top">
-                  <span>{listing.destination}</span>
-                  <span>{listing.openings}</span>
+          <div className="recruitment-filters">
+            <label className="recruitment-search">
+              <span className="sr-only">Search jobs</span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="10.8" cy="10.8" r="6.8" />
+                <path d="m16 16 5 5" />
+              </svg>
+              <input
+                type="search"
+                value={jobSearch}
+                onChange={(event) => setJobSearch(event.target.value)}
+                placeholder="Search job title or city (e.g. Driver, Nurse, Doha, Riyadh)"
+              />
+            </label>
+            <label className="recruitment-category">
+              <span className="sr-only">Filter by job category</span>
+              <select value={jobCategory} onChange={(event) => setJobCategory(event.target.value)}>
+                {jobCategories.map((category) => <option key={category}>{category}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className="recruitment-job-list">
+            {filteredJobs.map((listing) => (
+              <article className="recruitment-job-card" key={listing.title}>
+                <div className="recruitment-job-info">
+                  <div className="job-card-top">
+                    <span>{listing.destination}</span>
+                    <span className="job-category-chip">{listing.role}</span>
+                    <span className="job-openings-chip">{listing.openings}</span>
+                  </div>
+                  <h3>{listing.title}</h3>
+                  <p className="job-compensation">
+                    Salary &amp; package: {listing.compensation} (Full-time)
+                  </p>
+                  <p className="job-requirements"><strong>Requirements:</strong> {listing.requirements}</p>
+                  <p className="job-benefits">
+                    <strong>Benefits:</strong> {listing.role === "Healthcare"
+                      ? "Housing allowance, health cover and annual leave."
+                      : listing.role === "Security Services"
+                        ? "Accommodation, uniform and medical insurance."
+                        : "Contract benefits and support from the recruitment team."}
+                    <span> · Deadline: {listing.deadline}</span>
+                  </p>
                 </div>
-                <p className="sample-label">{listing.role}</p>
-                <h3>{listing.title}</h3>
-                <p className="job-compensation">{listing.compensation}</p>
-                <p className="job-requirements">{listing.requirements}</p>
-                <div className="job-card-bottom">
-                  <span>Due: {listing.deadline}</span>
-                  <a
+                <div className="recruitment-job-action">
+                  <button
+                    type="button"
                     className="button button-primary"
-                    href={whatsappLink(
-                      `Hello Youamy Enterprises, I am enquiring about ${listing.title}.`,
-                    )}
-                    target="_blank"
-                    rel="noreferrer"
+                    onClick={() => {
+                      setApplicationError("");
+                      setApplicationNotice("");
+                      setJobApplication({
+                        title: listing.title,
+                        destination: listing.destination,
+                      });
+                    }}
                   >
-                    Apply Now
-                  </a>
+                    Apply with CV
+                  </button>
+                  <span>Upload your CV securely with the application.</span>
                 </div>
               </article>
             ))}
+            {filteredJobs.length === 0 && (
+              <div className="recruitment-empty">No jobs match those filters. Try another country or category.</div>
+            )}
           </div>
+          <a className="text-link recruitment-all-jobs" href="#contact">
+            Ask the recruitment team <span aria-hidden="true">→</span>
+          </a>
         </div>
       </section>
 
@@ -272,16 +424,14 @@ export default function HomePage() {
             </a>
           </div>
           <div className="market-grid">
-            {vehicleListings.map((listing, index) => (
+            {vehicleListings.map((listing) => (
               <article className="market-card" key={listing.title}>
-                <div
-                  className={`sample-image vehicle-image vehicle-image-${index + 1}`}
-                  role="img"
-                  aria-label={`${listing.title} photo`}
-                >
-                  <span className="photo-placeholder">Vehicle photo</span>
-                  <span className="listing-status">{listing.status}</span>
-                </div>
+                <PhotoSlider
+                  imageUrls={listing.imageUrls}
+                  alt={listing.title}
+                  status={listing.status}
+                  className="vehicle-photo"
+                />
                 <div className="market-card-content">
                   <p className="listing-category">{listing.year}</p>
                   <h3>{listing.title}</h3>
@@ -304,6 +454,16 @@ export default function HomePage() {
                     >
                       Inquire via Email
                     </a>
+                    <button
+                      type="button"
+                      className="listing-contact listing-schedule"
+                      onClick={() => setAppointment({
+                        serviceType: "vehicle_inspection",
+                        target: listing.title,
+                      })}
+                    >
+                      Schedule inspection
+                    </button>
                   </div>
                 </div>
               </article>
@@ -326,14 +486,12 @@ export default function HomePage() {
           <div className="market-grid">
             {propertyListings.map((listing, index) => (
               <article className="market-card" key={listing.title}>
-                <div
-                  className={`sample-image property-image property-image-${index + 1}`}
-                  role="img"
-                  aria-label={`${listing.title} photo`}
-                >
-                  <span className="photo-placeholder">Property photo</span>
-                  <span className="listing-status">{listing.status}</span>
-                </div>
+                <PhotoSlider
+                  imageUrls={listing.imageUrls}
+                  alt={listing.title}
+                  status={listing.status}
+                  className={`property-photo property-photo-${index + 1}`}
+                />
                 <div className="market-card-content">
                   <p className="listing-category">{listing.location}</p>
                   <h3>{listing.title}</h3>
@@ -355,6 +513,16 @@ export default function HomePage() {
                     >
                       Inquire via Email
                     </a>
+                    <button
+                      type="button"
+                      className="listing-contact listing-schedule"
+                      onClick={() => setAppointment({
+                        serviceType: "property_viewing",
+                        target: listing.title,
+                      })}
+                    >
+                      Schedule viewing
+                    </button>
                   </div>
                 </div>
               </article>
@@ -365,21 +533,120 @@ export default function HomePage() {
 
       <ProductBrowser />
 
-      <section className="sanitation-callout" id="sanitation">
-        <div className="site-container sanitation-content">
-          <div>
+      <section className="sanitation-section" id="sanitation">
+        <div className="site-container">
+          <div className="sanitation-heading">
             <p className="section-kicker">Sanitation services</p>
-            <h2>Sanitation support, day and night.</h2>
-            <p>
-              Exhauster septic cleaning, scheduled garbage collection and
-              commercial waste solutions with 24/7 fleet support.
-            </p>
+            <h2>Sanitation &amp; waste management services</h2>
+            <p>Fast, licensed and eco-compliant sanitation for homes, estates, hotels and factories.</p>
           </div>
-          <a className="button button-blue" href="#contact">
-            Ask about sanitation
-          </a>
+          <div className="sanitation-layout">
+            <div className="sanitation-service-list">
+              {[
+                ["Septic tank cleaning", "Modern high-capacity exhauster trucks for rapid, hygienic septic and biodigester emptying.", "/sanitation/septic-tank-cleaning.jpg"],
+                ["Garbage collection", "Reliable weekly residential estate and commercial refuse collection with NEMA compliance.", "/sanitation/garbage-collection.jpg"],
+                ["Waste management solutions", "Industrial waste sorting, skip bin rentals and eco-friendly disposal management.", "/sanitation/waste-management.jpg"],
+                ["Commercial & residential cleaning", "Deep post-construction cleaning, office janitorial contracts and fumigation services.", "/sanitation/commercial-cleaning.jpg"],
+                ["Skip bin & construction waste disposal", "Short-term and project-based skip bins for renovation debris and commercial waste.", "/sanitation/waste-disposal.jpg"],
+              ].map(([title, detail, imageUrl]) => (
+                <article className="sanitation-service-card" key={title}>
+                  <div className="sanitation-service-photo">
+                    <Image src={imageUrl} alt={title} fill unoptimized sizes="(max-width: 700px) 100vw, 25vw" />
+                  </div>
+                  <div className="sanitation-service-content">
+                    <h3>{title}</h3>
+                    <p>{detail}</p>
+                  </div>
+                </article>
+              ))}
+              <aside className="sanitation-emergency">
+                <h3>Emergency exhauster dispatch?</h3>
+                <p>
+                  Call our 24/7 rapid response desk at{" "}
+                  <a href={`tel:${company.phoneLink}`}>{company.phone}</a> for same-day septic or waste clearance.
+                </p>
+              </aside>
+            </div>
+            <AppointmentBooking serviceType="sanitation_service" />
+          </div>
         </div>
       </section>
+
+      {appointment && (
+        <AppointmentBooking
+          variant="dialog"
+          serviceType={appointment.serviceType}
+          initialTarget={appointment.target}
+          onClose={() => setAppointment(null)}
+        />
+      )}
+
+      {jobApplication && (
+        <div
+          className="appointment-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setJobApplication(null);
+          }}
+        >
+          <section className="appointment-dialog job-application-dialog" role="dialog" aria-modal="true" aria-labelledby="job-application-title">
+            <button
+              type="button"
+              className="appointment-dialog-close"
+              onClick={() => setJobApplication(null)}
+              aria-label="Close job application"
+            >
+              ×
+            </button>
+            <form className="appointment-form" onSubmit={submitJobApplication}>
+              <div className="appointment-form-heading">
+                <h3 id="job-application-title">Apply for this job</h3>
+                <p>{jobApplication.title} · {jobApplication.destination}</p>
+              </div>
+              <div className="appointment-fields">
+                <label className="appointment-field">
+                  Full name
+                  <input name="fullName" autoComplete="name" maxLength={120} required />
+                </label>
+                <label className="appointment-field">
+                  Phone number
+                  <input name="phone" type="tel" autoComplete="tel" maxLength={32} required />
+                </label>
+                <label className="appointment-field">
+                  Email address
+                  <input name="email" type="email" autoComplete="email" maxLength={180} />
+                </label>
+                <label className="appointment-field">
+                  Relevant experience
+                  <input name="experience" maxLength={2000} placeholder="Years and role experience" />
+                </label>
+                <label className="appointment-field appointment-field-wide">
+                  Attach CV or resume
+                  <input
+                    name="cv"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
+                    required
+                  />
+                  <span className="job-application-file-help">PDF, Word, JPG or PNG. Maximum 5 MB.</span>
+                </label>
+                <label className="appointment-field appointment-field-wide">
+                  Additional information
+                  <textarea name="notes" rows={3} maxLength={2000} />
+                </label>
+              </div>
+              {applicationError && <p className="appointment-error" role="alert">{applicationError}</p>}
+              {applicationNotice && <p className="appointment-success" role="status">{applicationNotice}</p>}
+              <div className="appointment-submit-row">
+                <button type="submit" className="appointment-submit" disabled={applicationBusy}>
+                  {applicationBusy ? "Submitting…" : "Submit application"}
+                </button>
+                <button type="button" className="appointment-cancel" onClick={() => setJobApplication(null)}>Close</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       <section className="about-faq-section" id="about">
         <div className="site-container about-faq-layout">
@@ -476,10 +743,23 @@ export default function HomePage() {
                 <span>Website</span>
                 <a href={`https://${company.website}`} target="_blank" rel="noreferrer">{company.website}</a>
               </div>
-              <div className="map-placeholder" aria-label="[Map placeholder]">
-                <span className="map-pin" aria-hidden="true">⌖</span>
-                <strong>Mombasa</strong>
-                <span>[Map placeholder]</span>
+              <div className="office-map">
+                <iframe
+                  title="Approximate Youamy Enterprises office location in Mombasa CBD"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=39.657%2C-4.052%2C39.679%2C-4.036&layer=mapnik&marker=${officeCoordinates.latitude}%2C${officeCoordinates.longitude}`}
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+                <div>
+                  <span>Mombasa CBD · approximate office pin</span>
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${officeCoordinates.latitude}&mlon=${officeCoordinates.longitude}#map=16/${officeCoordinates.latitude}/${officeCoordinates.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open pinned location
+                  </a>
+                </div>
               </div>
             </div>
 

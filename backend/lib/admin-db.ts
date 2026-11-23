@@ -88,6 +88,63 @@ export function getAdminDatabase(): Promise<Database> {
           FOREIGN KEY (listing_id) REFERENCES admin_listings(id) ON DELETE SET NULL,
           FOREIGN KEY (created_by) REFERENCES admin_users(id)
         );
+        CREATE TABLE IF NOT EXISTS appointment_requests (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          request_id TEXT NOT NULL UNIQUE,
+          service_type TEXT NOT NULL CHECK (
+            service_type IN ('vehicle_inspection', 'property_viewing', 'sanitation_service')
+          ),
+          target TEXT NOT NULL,
+          client_name TEXT NOT NULL,
+          client_phone TEXT NOT NULL,
+          preferred_date TEXT NOT NULL,
+          preferred_time TEXT NOT NULL,
+          location TEXT NOT NULL DEFAULT '',
+          location_latitude REAL,
+          location_longitude REAL,
+          notes TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'Requested'
+            CHECK (status IN ('Requested', 'Confirmed', 'Completed', 'Cancelled')),
+          notification_status TEXT NOT NULL DEFAULT 'pending'
+            CHECK (notification_status IN ('pending', 'sent', 'failed', 'not_configured')),
+          notification_error TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS job_applications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          application_id TEXT NOT NULL UNIQUE,
+          job_title TEXT NOT NULL,
+          destination TEXT NOT NULL,
+          full_name TEXT NOT NULL,
+          phone TEXT NOT NULL,
+          email TEXT NOT NULL DEFAULT '',
+          experience TEXT NOT NULL DEFAULT '',
+          notes TEXT NOT NULL DEFAULT '',
+          cv_name TEXT NOT NULL,
+          cv_type TEXT NOT NULL,
+          cv_size INTEGER NOT NULL,
+          cv_data BLOB NOT NULL,
+          status TEXT NOT NULL DEFAULT 'New'
+            CHECK (status IN ('New', 'Reviewed', 'Shortlisted', 'Rejected')),
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS job_applications_created_at_idx
+          ON job_applications(created_at DESC);
+        CREATE INDEX IF NOT EXISTS appointment_requests_created_at_idx
+          ON appointment_requests(created_at DESC);
+        CREATE TRIGGER IF NOT EXISTS log_appointment_request_created
+        AFTER INSERT ON appointment_requests
+        BEGIN
+          INSERT INTO activity_log (user_id, action, details)
+          VALUES (
+            NULL,
+            'appointment.requested',
+            COALESCE(NEW.client_name, 'Customer') || ' · ' || NEW.target || ' · ' ||
+              NEW.preferred_date || ' ' || NEW.preferred_time
+          );
+        END;
         CREATE INDEX IF NOT EXISTS listing_inquiries_created_at_idx
           ON listing_inquiries(created_at DESC);
         CREATE TRIGGER IF NOT EXISTS log_listing_inquiry_created
@@ -101,6 +158,16 @@ export function getAdminDatabase(): Promise<Database> {
           );
         END;
       `);
+
+      const appointmentColumns = await db.all(
+        "PRAGMA table_info(appointment_requests)",
+      ) as Array<{ name: string }>;
+      if (!appointmentColumns.some((column) => column.name === "location_latitude")) {
+        await db.exec("ALTER TABLE appointment_requests ADD COLUMN location_latitude REAL");
+      }
+      if (!appointmentColumns.some((column) => column.name === "location_longitude")) {
+        await db.exec("ALTER TABLE appointment_requests ADD COLUMN location_longitude REAL");
+      }
 
       const superAdmin = await db.get("SELECT id FROM admin_users WHERE email = ?", [
         "superadmin@youamy.co.ke",
