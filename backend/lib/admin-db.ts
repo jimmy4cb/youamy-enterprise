@@ -1,7 +1,4 @@
-import { open, type Database } from "sqlite";
-import sqlite3 from "sqlite3";
-import path from "node:path";
-import fs from "node:fs";
+import { createSupabaseAdminClient } from "./supabase/server";
 
 export type AdminRole =
   | "super_admin"
@@ -19,190 +16,186 @@ export type AdminUser = {
   active: boolean;
 };
 
-let databasePromise: Promise<Database> | null = null;
+type SqliteCompatDb = {
+  get: <T = any>(sql: string, params?: any[]) => Promise<T | undefined>;
+  all: <T = any>(sql: string, params?: any[]) => Promise<T[]>;
+  run: (sql: string, params?: any[]) => Promise<{ lastID?: number; changes?: number }>;
+  exec: (sql: string) => Promise<void>;
+};
 
-export function getAdminDatabase(): Promise<Database> {
-  if (!databasePromise) {
-    databasePromise = (async () => {
-      const dataDirectory = path.join(process.cwd(), "data");
-      await fs.promises.mkdir(dataDirectory, { recursive: true });
-      const db = await open({
-        filename: path.join(dataDirectory, "youamy-admin.sqlite"),
-        driver: sqlite3.Database,
-      }) as Database;
-      await db.exec(`
-        PRAGMA foreign_keys = ON;
-        CREATE TABLE IF NOT EXISTS admin_users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          email TEXT NOT NULL UNIQUE,
-          password_hash TEXT NOT NULL,
-          role TEXT NOT NULL,
-          totp_secret TEXT,
-          active INTEGER NOT NULL DEFAULT 1,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS admin_sessions (
-          id TEXT PRIMARY KEY,
-          user_id INTEGER NOT NULL,
-          expires_at TEXT NOT NULL,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS admin_listings (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          title TEXT NOT NULL,
-          division TEXT NOT NULL,
-          detail TEXT NOT NULL,
-          status TEXT NOT NULL DEFAULT 'Draft',
-          archived INTEGER NOT NULL DEFAULT 0,
-          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          created_by INTEGER,
-          FOREIGN KEY (created_by) REFERENCES admin_users(id)
-        );
-        CREATE TABLE IF NOT EXISTS activity_log (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER,
-          action TEXT NOT NULL,
-          details TEXT,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES admin_users(id)
-        );
-        CREATE TABLE IF NOT EXISTS listing_inquiries (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          submission_id TEXT NOT NULL UNIQUE,
-          listing_id INTEGER,
-          listing_title TEXT NOT NULL,
-          division TEXT NOT NULL CHECK (division IN ('Vehicles', 'Real Estate')),
-          inquiry_type TEXT NOT NULL,
-          client_name TEXT NOT NULL DEFAULT '',
-          client_phone TEXT NOT NULL,
-          questions TEXT NOT NULL DEFAULT '',
-          status TEXT NOT NULL DEFAULT 'New' CHECK (status IN ('New', 'Contacted', 'Closed')),
-          notification_status TEXT NOT NULL DEFAULT 'pending'
-            CHECK (notification_status IN ('pending', 'sent', 'failed', 'not_configured')),
-          notification_error TEXT,
-          created_by INTEGER NOT NULL,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (listing_id) REFERENCES admin_listings(id) ON DELETE SET NULL,
-          FOREIGN KEY (created_by) REFERENCES admin_users(id)
-        );
-        CREATE TABLE IF NOT EXISTS appointment_requests (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          request_id TEXT NOT NULL UNIQUE,
-          service_type TEXT NOT NULL CHECK (
-            service_type IN ('vehicle_inspection', 'property_viewing', 'sanitation_service')
-          ),
-          target TEXT NOT NULL,
-          client_name TEXT NOT NULL,
-          client_phone TEXT NOT NULL,
-          preferred_date TEXT NOT NULL,
-          preferred_time TEXT NOT NULL,
-          location TEXT NOT NULL DEFAULT '',
-          location_latitude REAL,
-          location_longitude REAL,
-          notes TEXT NOT NULL DEFAULT '',
-          status TEXT NOT NULL DEFAULT 'Requested'
-            CHECK (status IN ('Requested', 'Confirmed', 'Completed', 'Cancelled')),
-          notification_status TEXT NOT NULL DEFAULT 'pending'
-            CHECK (notification_status IN ('pending', 'sent', 'failed', 'not_configured')),
-          notification_error TEXT,
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS job_applications (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          application_id TEXT NOT NULL UNIQUE,
-          job_title TEXT NOT NULL,
-          destination TEXT NOT NULL,
-          full_name TEXT NOT NULL,
-          phone TEXT NOT NULL,
-          email TEXT NOT NULL DEFAULT '',
-          experience TEXT NOT NULL DEFAULT '',
-          notes TEXT NOT NULL DEFAULT '',
-          cv_name TEXT NOT NULL,
-          cv_type TEXT NOT NULL,
-          cv_size INTEGER NOT NULL,
-          cv_data BLOB NOT NULL,
-          status TEXT NOT NULL DEFAULT 'New'
-            CHECK (status IN ('New', 'Reviewed', 'Shortlisted', 'Rejected')),
-          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS job_applications_created_at_idx
-          ON job_applications(created_at DESC);
-        CREATE INDEX IF NOT EXISTS appointment_requests_created_at_idx
-          ON appointment_requests(created_at DESC);
-        CREATE TRIGGER IF NOT EXISTS log_appointment_request_created
-        AFTER INSERT ON appointment_requests
-        BEGIN
-          INSERT INTO activity_log (user_id, action, details)
-          VALUES (
-            NULL,
-            'appointment.requested',
-            COALESCE(NEW.client_name, 'Customer') || ' · ' || NEW.target || ' · ' ||
-              NEW.preferred_date || ' ' || NEW.preferred_time
-          );
-        END;
-        CREATE INDEX IF NOT EXISTS listing_inquiries_created_at_idx
-          ON listing_inquiries(created_at DESC);
-        CREATE TRIGGER IF NOT EXISTS log_listing_inquiry_created
-        AFTER INSERT ON listing_inquiries
-        BEGIN
-          INSERT INTO activity_log (user_id, action, details)
-          VALUES (
-            NEW.created_by,
-            'inquiry.created',
-            NEW.listing_title || ' · ' || NEW.inquiry_type
-          );
-        END;
-      `);
+function parseTableName(sql: string): string {
+  const match =
+    sql.match(/\bFROM\s+(?:public\.)?([a-zA-Z0-9_]+)/i) ||
+    sql.match(/\bINTO\s+(?:public\.)?([a-zA-Z0-9_]+)/i) ||
+    sql.match(/\bUPDATE\s+(?:public\.)?([a-zA-Z0-9_]+)/i);
+  return match ? match[1].toLowerCase() : "";
+}
 
-      const appointmentColumns = await db.all(
-        "PRAGMA table_info(appointment_requests)",
-      ) as Array<{ name: string }>;
-      if (!appointmentColumns.some((column) => column.name === "location_latitude")) {
-        await db.exec("ALTER TABLE appointment_requests ADD COLUMN location_latitude REAL");
-      }
-      if (!appointmentColumns.some((column) => column.name === "location_longitude")) {
-        await db.exec("ALTER TABLE appointment_requests ADD COLUMN location_longitude REAL");
-      }
+function parseInsertData(sql: string, params: any[] = []): Record<string, any> {
+  const colsMatch = sql.match(/\(([^)]+)\)\s*VALUES/i);
+  if (!colsMatch) return {};
+  const cols = colsMatch[1].split(",").map((c) => c.trim().replace(/["`]/g, ""));
+  const data: Record<string, any> = {};
+  cols.forEach((col, i) => {
+    if (i < params.length) {
+      data[col] = Buffer.isBuffer(params[i]) ? params[i].toString("base64") : params[i];
+    }
+  });
+  return data;
+}
 
-      const listingCount = await db.get("SELECT COUNT(*) AS count FROM admin_listings");
-      if (listingCount?.count === 0) {
-        await db.run(
-          `INSERT INTO admin_listings (title, division, detail, status, created_by)
-           SELECT title, division, detail, status, (SELECT id FROM admin_users WHERE role = 'super_admin' LIMIT 1)
-           FROM (SELECT 'Heavy Duty Trailer Drivers (GCC License)' title, 'Jobs' division, 'Saudi Arabia · Riyadh · 25 slots' detail, 'Published' status
-                 UNION ALL SELECT '2019 Toyota Land Cruiser Prado TX-L', 'Vehicles', 'Available · Ksh 6,850,000', 'Published'
-                 UNION ALL SELECT 'Modern 4-Bedroom Villa with DSQ', 'Real Estate', 'Nyali, Mombasa · Ksh 32,000,000', 'Published'
-                 UNION ALL SELECT 'Exhauster septic cleaning', 'Sanitation', 'Mombasa / Nairobi Corridor', 'Published')`,
-        );
-      }
-      return db;
-    }) as unknown as Promise<Database>;
+function parseUpdateData(sql: string, params: any[] = []): { updates: Record<string, any>; whereVal: any } {
+  const setMatch = sql.match(/\bSET\s+([\s\S]+?)\s+WHERE\b/i);
+  const updates: Record<string, any> = {};
+  if (!setMatch) return { updates, whereVal: params[params.length - 1] };
+
+  const assignments = setMatch[1].split(",");
+  let paramIdx = 0;
+
+  for (const part of assignments) {
+    const [rawCol, rawVal] = part.split("=").map((s) => s.trim());
+    const col = rawCol.replace(/["`]/g, "");
+    if (rawVal === "?") {
+      updates[col] = params[paramIdx++];
+    } else if (/CURRENT_TIMESTAMP|NOW\(\)/i.test(rawVal)) {
+      updates[col] = new Date().toISOString();
+    } else if (/^'.*'$/.test(rawVal)) {
+      updates[col] = rawVal.slice(1, -1);
+    } else if (!Number.isNaN(Number(rawVal))) {
+      updates[col] = Number(rawVal);
+    }
   }
-  return databasePromise;
+
+  return { updates, whereVal: params[paramIdx] };
+}
+
+function parseWhereColumn(sql: string): string {
+  const whereMatch = sql.match(/\bWHERE\s+(?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)\s*=/i);
+  return whereMatch ? whereMatch[1] : "id";
+}
+
+export async function getAdminDatabase(): Promise<SqliteCompatDb> {
+  const supabase = createSupabaseAdminClient();
+
+  return {
+    async exec() {
+      // Schema creation is handled in Supabase migrations
+    },
+
+    async all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+      const table = parseTableName(sql);
+      if (!table) return [];
+
+      let query = supabase.from(table).select("*");
+
+      if (/\bWHERE\b/i.test(sql) && params.length > 0) {
+        const whereCol = parseWhereColumn(sql);
+        query = query.eq(whereCol, params[0]);
+      }
+
+      if (/ORDER\s+BY\s+created_at\s+DESC/i.test(sql)) {
+        query = query.order("created_at", { ascending: false });
+      } else if (/ORDER\s+BY\s+updated_at\s+DESC/i.test(sql)) {
+        query = query.order("updated_at", { ascending: false });
+      } else if (/ORDER\s+BY\s+id\s+DESC/i.test(sql)) {
+        query = query.order("id", { ascending: false });
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as T[];
+    },
+
+    async get<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {
+      const table = parseTableName(sql);
+      if (!table) return undefined;
+
+      if (/COUNT\(\*\)/i.test(sql)) {
+        const { count, error } = await supabase
+          .from(table)
+          .select("*", { count: "exact", head: true });
+        if (error) throw error;
+        return { count: count ?? 0 } as T;
+      }
+
+      let query = supabase.from(table).select("*");
+      if (/\bWHERE\b/i.test(sql) && params.length > 0) {
+        const whereCol = parseWhereColumn(sql);
+        query = query.eq(whereCol, params[0]);
+      }
+
+      const { data, error } = await query.limit(1).maybeSingle();
+      if (error) throw error;
+      return (data ?? undefined) as T | undefined;
+    },
+
+    async run(sql: string, params: any[] = []) {
+      const table = parseTableName(sql);
+      if (!table) return { changes: 0 };
+
+      if (/^\s*INSERT/i.test(sql)) {
+        const payload = parseInsertData(sql, params);
+        const isIgnore = /OR\s+IGNORE/i.test(sql);
+
+        if (isIgnore) {
+          const conflictCol = Object.keys(payload)[0];
+          const { data, error } = await supabase
+            .from(table)
+            .upsert(payload, { onConflict: conflictCol, ignoreDuplicates: true })
+            .select("id")
+            .maybeSingle();
+          if (error) throw error;
+          return { lastID: data?.id, changes: data ? 1 : 0 };
+        }
+
+        const { data, error } = await supabase
+          .from(table)
+          .insert(payload)
+          .select("id")
+          .maybeSingle();
+        if (error) throw error;
+        return { lastID: data?.id, changes: 1 };
+      }
+
+      if (/^\s*UPDATE/i.test(sql)) {
+        const { updates, whereVal } = parseUpdateData(sql, params);
+        const whereCol = parseWhereColumn(sql);
+        const { error } = await supabase
+          .from(table)
+          .update(updates)
+          .eq(whereCol, whereVal);
+        if (error) throw error;
+        return { changes: 1 };
+      }
+
+      if (/^\s*DELETE/i.test(sql)) {
+        const whereCol = parseWhereColumn(sql);
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq(whereCol, params[0]);
+        if (error) throw error;
+        return { changes: 1 };
+      }
+
+      return { changes: 0 };
+    },
+  };
 }
 
 export async function syncAdminUserMirror(user: AdminUser): Promise<void> {
-  const db = await getAdminDatabase();
-  const existingUser = await db.get("SELECT id FROM admin_users WHERE email = ?", [user.email]) as
-    | { id: number }
-    | undefined;
-  if (existingUser && existingUser.id !== user.id) {
-    throw new Error("The local admin user ID does not match the Supabase account.");
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("admin_users")
+    .update({
+      name: user.name,
+      role: user.role,
+      totp_secret: user.totp_secret,
+      active: user.active,
+    })
+    .eq("email", user.email);
+
+  if (error) {
+    console.error("Failed to sync admin user:", error);
   }
-  await db.run(
-    `INSERT INTO admin_users (id, name, email, password_hash, role, totp_secret, active)
-     VALUES (?, ?, ?, ?, ?, NULL, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       name = excluded.name,
-       email = excluded.email,
-       password_hash = excluded.password_hash,
-       role = excluded.role,
-       totp_secret = NULL,
-       active = excluded.active`,
-    [user.id, user.name, user.email, "!supabase-auth-only!", user.role, user.active ? 1 : 0],
-  );
 }
