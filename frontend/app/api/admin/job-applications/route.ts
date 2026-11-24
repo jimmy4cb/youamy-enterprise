@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminDatabase } from "@backend/lib/admin-db";
+import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
 import { getSessionUser, hasPermission } from "@backend/lib/admin-auth";
 
 export async function GET(request: Request) {
@@ -11,16 +11,20 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const downloadId = url.searchParams.get("download");
-    const db = await getAdminDatabase();
+    const supabase = createSupabaseAdminClient();
 
     if (downloadId) {
-      const application = await db.get(
-        `SELECT application_id, cv_name, cv_type, cv_size, cv_data
-         FROM job_applications WHERE application_id = ?`,
-        [downloadId],
-      ) as { application_id: string; cv_name: string; cv_type: string; cv_size: number; cv_data: Buffer } | undefined;
+      const { data: application, error } = await supabase
+        .from("job_applications")
+        .select("application_id, cv_name, cv_type, cv_size, cv_data")
+        .eq("application_id", downloadId)
+        .maybeSingle();
+      if (error) throw error;
       if (!application) return NextResponse.json({ error: "Attachment not found." }, { status: 404 });
-      const cvBytes = new Uint8Array(application.cv_data);
+      const cvBytes = Buffer.from(application.cv_data, "base64");
+      if (cvBytes.byteLength !== application.cv_size) {
+        throw new Error("Stored job application attachment has an invalid size.");
+      }
       return new NextResponse(cvBytes, {
         headers: {
           "Content-Type": application.cv_type,
@@ -31,47 +35,22 @@ export async function GET(request: Request) {
       });
     }
 
-    const [applications, totals, statusRows, monthly, topJobs] = await Promise.all([
-      db.all(
-        `SELECT id, application_id, job_title, destination, full_name, phone, email,
-                experience, notes, cv_name, cv_type, cv_size, status, created_at
-         FROM job_applications
-         ORDER BY created_at DESC
-         LIMIT 500`,
-      ),
-      db.get(
-        `SELECT COUNT(*) AS total,
-                SUM(CASE WHEN created_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS last30Days
-         FROM job_applications`,
-      ) as Promise<{ total: number; last30Days: number | null }>,
-      db.all(
-        "SELECT status, COUNT(*) AS count FROM job_applications GROUP BY status",
-      ) as Promise<Array<{ status: string; count: number }>>,
-      db.all(
-        `SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS count
-         FROM job_applications
-         WHERE date(created_at) >= date('now', 'start of month', '-5 months')
-         GROUP BY strftime('%Y-%m', created_at)
-         ORDER BY month`,
-      ) as Promise<Array<{ month: string; count: number }>>,
-      db.all(
-        `SELECT job_title, destination, COUNT(*) AS count
-         FROM job_applications
-         GROUP BY job_title, destination
-         ORDER BY count DESC, job_title
-         LIMIT 5`,
-      ) as Promise<Array<{ job_title: string; destination: string; count: number }>>,
+    const [applicationsResult, analyticsResult] = await Promise.all([
+      supabase
+        .from("job_applications")
+        .select(
+          "id, application_id, job_title, destination, full_name, phone, email, experience, notes, cv_name, cv_type, cv_size, status, created_at",
+        )
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase.rpc("job_application_analytics"),
     ]);
+    if (applicationsResult.error) throw applicationsResult.error;
+    if (analyticsResult.error) throw analyticsResult.error;
 
     return NextResponse.json({
-      applications,
-      analytics: {
-        total: totals.total,
-        last30Days: totals.last30Days || 0,
-        byStatus: Object.fromEntries(statusRows.map((row) => [row.status, row.count])),
-        monthly,
-        topJobs,
-      },
+      applications: applicationsResult.data,
+      analytics: analyticsResult.data,
     });
   } catch (error) {
     console.error("Could not load job applications", error);
@@ -89,12 +68,19 @@ export async function PATCH(request: Request) {
   if (!body || !Number.isSafeInteger(body.id) || !body.status || !statuses.has(body.status)) {
     return NextResponse.json({ error: "Choose a valid application and status." }, { status: 400 });
   }
-  const db = await getAdminDatabase();
-  const application = await db.get("SELECT id, job_title FROM job_applications WHERE id = ?", [body.id]) as { id: number; job_title: string } | undefined;
-  if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
-  await db.run(
-    "UPDATE job_applications SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    [body.status, application.id],
-  );
-  return NextResponse.json({ ok: true, status: body.status });
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data: application, error } = await supabase
+      .from("job_applications")
+      .update({ status: body.status, updated_at: new Date().toISOString() })
+      .eq("id", body.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
+    return NextResponse.json({ ok: true, status: body.status });
+  } catch (error) {
+    console.error("Could not update job application status", error);
+    return NextResponse.json({ error: "Could not update application status." }, { status: 500 });
+  }
 }

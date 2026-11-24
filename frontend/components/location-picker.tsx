@@ -32,7 +32,16 @@ export default function LocationPicker({ onChange }: Props) {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
 
-      const placePin = (latitude: number, longitude: number) => {
+      const placePin = (latitude?: number | null, longitude?: number | null) => {
+        if (
+          typeof latitude !== "number" ||
+          typeof longitude !== "number" ||
+          Number.isNaN(latitude) ||
+          Number.isNaN(longitude)
+        ) {
+          return;
+        }
+
         const coordinates = { latitude, longitude };
         if (markerRef.current) markerRef.current.setLatLng([latitude, longitude]);
         else {

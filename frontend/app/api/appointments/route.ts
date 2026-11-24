@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAdminDatabase } from "@backend/lib/admin-db";
+import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
 import {
   emailAppointmentToTeam,
+  type AppointmentEmail,
   type AppointmentEmailResult,
 } from "@backend/lib/appointment-notifications";
 
@@ -109,36 +110,45 @@ export async function POST(request: Request) {
   }
 
   try {
-    const db = await getAdminDatabase();
-    await db.run(
-      `INSERT OR IGNORE INTO appointment_requests
-       (request_id, service_type, target, client_name, client_phone, preferred_date,
-        preferred_time, location, location_latitude, location_longitude, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        body.requestId,
-        body.serviceType,
-        target,
-        clientName,
-        phone,
-        preferredDate,
-        preferredTime,
-        location,
-        locationLatitude,
-        locationLongitude,
-        notes,
-      ],
-    );
-    const insertResult = await db.get("SELECT changes() AS count") as { count: number };
-    const inserted = insertResult.count > 0;
-    const appointment = await db.get(
-      "SELECT * FROM appointment_requests WHERE request_id = ?",
-      [body.requestId],
-    ) as Parameters<typeof emailAppointmentToTeam>[0] & {
+    const supabase = createSupabaseAdminClient();
+    const { data: insertedAppointment, error: upsertError } = await supabase
+      .from("appointment_requests")
+      .upsert(
+        {
+          request_id: body.requestId,
+          service_type: body.serviceType,
+          target,
+          client_name: clientName,
+          client_phone: phone,
+          preferred_date: preferredDate,
+          preferred_time: preferredTime,
+          location,
+          location_latitude: locationLatitude,
+          location_longitude: locationLongitude,
+          notes,
+        },
+        { onConflict: "request_id", ignoreDuplicates: true },
+      )
+      .select("*")
+      .maybeSingle();
+    if (upsertError) throw upsertError;
+
+    const inserted = insertedAppointment !== null;
+    let appointment = insertedAppointment as (AppointmentEmail & {
+      status: string;
       notification_status: AppointmentEmailResult["status"] | "pending";
       notification_error: string | null;
-    } | undefined;
+    }) | null;
 
+    if (!appointment) {
+      const { data, error } = await supabase
+        .from("appointment_requests")
+        .select("*")
+        .eq("request_id", body.requestId)
+        .single();
+      if (error) throw error;
+      appointment = data as typeof appointment;
+    }
     if (!appointment) {
       throw new Error("Appointment request was not persisted.");
     }
@@ -156,10 +166,14 @@ export async function POST(request: Request) {
         console.error("Appointment notification failed", error);
         emailResult = { status: "failed", error: "The email service could not be reached." };
       }
-      await db.run(
-        "UPDATE appointment_requests SET notification_status = ?, notification_error = ? WHERE id = ?",
-        [emailResult.status, emailResult.error || null, appointment.id],
-      );
+      const { error } = await supabase
+        .from("appointment_requests")
+        .update({
+          notification_status: emailResult.status,
+          notification_error: emailResult.error || null,
+        })
+        .eq("request_id", body.requestId);
+      if (error) throw error;
     }
 
     return NextResponse.json({

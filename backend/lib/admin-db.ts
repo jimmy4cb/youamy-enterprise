@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import { open, type Database } from "sqlite";
 import sqlite3 from "sqlite3";
 import path from "node:path";
@@ -17,7 +16,7 @@ export type AdminUser = {
   email: string;
   role: AdminRole;
   totp_secret: string | null;
-  active: number;
+  active: boolean;
 };
 
 let databasePromise: Promise<Database> | null = null;
@@ -169,16 +168,6 @@ export function getAdminDatabase(): Promise<Database> {
         await db.exec("ALTER TABLE appointment_requests ADD COLUMN location_longitude REAL");
       }
 
-      const superAdmin = await db.get("SELECT id FROM admin_users WHERE email = ?", [
-        "superadmin@youamy.co.ke",
-      ]);
-      if (!superAdmin) {
-        const passwordHash = await bcrypt.hash("ChangeMe123!", 12);
-        await db.run(
-          "INSERT INTO admin_users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-          ["YEL Super Admin", "superadmin@youamy.co.ke", passwordHash, "super_admin"],
-        );
-      }
       const listingCount = await db.get("SELECT COUNT(*) AS count FROM admin_listings");
       if (listingCount?.count === 0) {
         await db.run(
@@ -194,4 +183,26 @@ export function getAdminDatabase(): Promise<Database> {
     }) as unknown as Promise<Database>;
   }
   return databasePromise;
+}
+
+export async function syncAdminUserMirror(user: AdminUser): Promise<void> {
+  const db = await getAdminDatabase();
+  const existingUser = await db.get("SELECT id FROM admin_users WHERE email = ?", [user.email]) as
+    | { id: number }
+    | undefined;
+  if (existingUser && existingUser.id !== user.id) {
+    throw new Error("The local admin user ID does not match the Supabase account.");
+  }
+  await db.run(
+    `INSERT INTO admin_users (id, name, email, password_hash, role, totp_secret, active)
+     VALUES (?, ?, ?, ?, ?, NULL, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       email = excluded.email,
+       password_hash = excluded.password_hash,
+       role = excluded.role,
+       totp_secret = NULL,
+       active = excluded.active`,
+    [user.id, user.name, user.email, "!supabase-auth-only!", user.role, user.active ? 1 : 0],
+  );
 }

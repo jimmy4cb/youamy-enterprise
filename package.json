@@ -7,7 +7,8 @@
     "dev": "next dev frontend",
     "build": "next build frontend",
     "start": "next start frontend",
-    "typecheck": "tsc --noEmit -p frontend/tsconfig.json"
+    "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
+    "admin:bootstrap": "node --env-file=frontend/.env scripts/bootstrap-admin.mjs"
   },
   "dependencies": {
     "@supabase/server": "^1.9.2",
@@ -21,7 +22,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sqlite": "^5.1.1",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.22",
@@ -35,5 +36,8 @@
   },
   "overrides": {
     "postcss": "8.5.33"
+  },
+  "allowScripts": {
+    "sqlite3@5.1.7": true
   }
 }

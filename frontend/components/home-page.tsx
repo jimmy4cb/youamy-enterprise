@@ -140,6 +140,7 @@ export default function HomePage() {
 
   async function submitJobApplication(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     if (!jobApplication) return;
     setApplicationBusy(true);
     setApplicationError("");
@@ -155,7 +156,7 @@ export default function HomePage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not submit your application.");
       setApplicationNotice(result.notice);
-      event.currentTarget.reset();
+      form.reset();
     } catch (reason) {
       setApplicationError(reason instanceof Error ? reason.message : "Could not submit your application.");
     } finally {

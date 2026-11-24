@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { getAdminDatabase } from "@backend/lib/admin-db";
+import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
 
 const allowedTypes = new Set([
   "application/pdf",
@@ -47,27 +47,22 @@ export async function POST(request: Request) {
     }
 
     const cvData = Buffer.from(await cv.arrayBuffer());
-    const db = await getAdminDatabase();
-    await db.run(
-      `INSERT INTO job_applications
-       (application_id, job_title, destination, full_name, phone, email, experience, notes,
-        cv_name, cv_type, cv_size, cv_data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        applicationId,
-        jobTitle,
-        destination,
-        fullName,
-        phone,
-        email,
-        experience.slice(0, 2000),
-        notes.slice(0, 2000),
-        cv.name.slice(0, 255),
-        cv.type,
-        cv.size,
-        cvData,
-      ],
-    );
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("job_applications").insert({
+      application_id: applicationId,
+      job_title: jobTitle,
+      destination,
+      full_name: fullName,
+      phone,
+      email,
+      experience: experience.slice(0, 2000),
+      notes: notes.slice(0, 2000),
+      cv_name: cv.name.slice(0, 255),
+      cv_type: cv.type,
+      cv_size: cv.size,
+      cv_data: cvData.toString("base64"),
+    });
+    if (error) throw error;
 
     return NextResponse.json({
       ok: true,

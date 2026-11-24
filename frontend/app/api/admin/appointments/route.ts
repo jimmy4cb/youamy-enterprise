@@ -1,5 +1,8 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { getAdminDatabase } from "@backend/lib/admin-db";
+import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
 import { getSessionUser, hasPermission } from "@backend/lib/admin-auth";
 
 const appointmentStatuses = ["Requested", "Confirmed", "Completed", "Cancelled"] as const;
@@ -11,16 +14,17 @@ export async function GET() {
   }
 
   try {
-    const db = await getAdminDatabase();
-    const appointments = await db.all(
-      `SELECT id, service_type, target, client_name, client_phone, preferred_date,
-              preferred_time, location, location_latitude, location_longitude,
-              notes, status, notification_status,
-              notification_error, created_at
-       FROM appointment_requests
-       ORDER BY preferred_date, preferred_time, created_at DESC
-       LIMIT 200`,
-    );
+    const supabase = createSupabaseAdminClient();
+    const { data: appointments, error } = await supabase
+      .from("appointment_requests")
+      .select(
+        "id, service_type, target, client_name, client_phone, preferred_date, preferred_time, location, location_latitude, location_longitude, notes, status, notification_status, notification_error, created_at",
+      )
+      .order("preferred_date", { ascending: true })
+      .order("preferred_time", { ascending: true })
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
     return NextResponse.json({ appointments });
   } catch (error) {
     console.error("Could not load appointment requests", error);
@@ -44,20 +48,25 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const db = await getAdminDatabase();
-    const appointment = await db.get(
-      "SELECT id, status, target FROM appointment_requests WHERE id = ?",
-      [body.id],
-    ) as { id: number; status: string; target: string } | undefined;
+    const supabase = createSupabaseAdminClient();
+    const { data: appointment, error: findError } = await supabase
+      .from("appointment_requests")
+      .select("id, status, target")
+      .eq("id", body.id)
+      .maybeSingle();
+    if (findError) throw findError;
     if (!appointment) {
       return NextResponse.json({ error: "Appointment request not found." }, { status: 404 });
     }
 
-    await db.run(
-      "UPDATE appointment_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [body.status, appointment.id],
-    );
+    const { error: updateError } = await supabase
+      .from("appointment_requests")
+      .update({ status: body.status, updated_at: new Date().toISOString() })
+      .eq("id", appointment.id);
+    if (updateError) throw updateError;
+
     if (appointment.status !== body.status) {
+      const db = await getAdminDatabase();
       await db.run(
         "INSERT INTO activity_log (user_id, action, details) VALUES (?, ?, ?)",
         [user.id, "appointment.status_updated", `${appointment.target}: ${appointment.status} → ${body.status}`],

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
-import { getAdminDatabase, type AdminRole, type AdminUser } from "./admin-db";
+import { createSupabaseAdminClient } from "./supabase/server";
+import { syncAdminUserMirror, type AdminRole, type AdminUser } from "./admin-db";
 
 export const SESSION_COOKIE = "yel_admin_session";
 export const PENDING_COOKIE = "yel_admin_pending";
@@ -36,16 +37,43 @@ export async function getSessionUser() {
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
   if (!sessionId) return null;
-  const db = await getAdminDatabase();
-  await db.run("DELETE FROM admin_sessions WHERE expires_at < datetime('now')");
-  const user = await db.get(
-    `SELECT u.id, u.name, u.email, u.role, u.totp_secret, u.active
-     FROM admin_sessions s
-     JOIN admin_users u ON u.id = s.user_id
-     WHERE s.id = ? AND s.expires_at > datetime('now') AND u.active = 1`,
-    [sessionId],
-  ) as AdminUser | undefined;
-  return user || null;
+  const supabase = createSupabaseAdminClient();
+  const { data: session, error: sessionError } = await supabase
+    .from("admin_sessions")
+    .select("user_id")
+    .eq("id", sessionId)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (sessionError) throw sessionError;
+  if (!session) return null;
+
+  const { data: user, error: userError } = await supabase
+    .from("admin_users")
+    .select("id, name, email, role, totp_secret, active")
+    .eq("id", session.user_id)
+    .eq("active", true)
+    .maybeSingle();
+  if (userError) throw userError;
+  if (
+    !user ||
+    !Number.isSafeInteger(user.id) ||
+    typeof user.name !== "string" ||
+    typeof user.email !== "string" ||
+    typeof user.active !== "boolean" ||
+    !["super_admin", "listings_admin", "orders_admin", "support_agent", "content_editor"].includes(user.role)
+  ) {
+    return null;
+  }
+  const sessionUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role as AdminRole,
+    totp_secret: user.totp_secret,
+    active: user.active,
+  } satisfies AdminUser;
+  await syncAdminUserMirror(sessionUser);
+  return sessionUser;
 }
 
 export function createToken() {

@@ -86,7 +86,7 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
   const [showForm, setShowForm] = useState(false);
   const [notice, setNotice] = useState("");
   const [showStaffForm, setShowStaffForm] = useState(false);
-  const [staff, setStaff] = useState<Array<{ id: number; name: string; email: string; role: string; active: number }>>([]);
+  const [staff, setStaff] = useState<Array<{ id: number; name: string; email: string; role: string; active: boolean }>>([]);
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [orderError, setOrderError] = useState("");
   const [products, setProducts] = useState<ShopProduct[]>([]);
