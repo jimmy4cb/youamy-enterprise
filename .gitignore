@@ -4,6 +4,8 @@ out/
 build/
 /data/
 /frontend/data/
+/uploads/
+/frontend/uploads/
 *.sqlite
 *.sqlite-*
 .env

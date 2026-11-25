@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
+import type { RowDataPacket } from "mysql2/promise";
 import { getSessionUser, hasPermission } from "@backend/lib/admin-auth";
+import { updateJobApplicationStatusWithSlotSync } from "@backend/lib/business-logic";
+import { queryOne, queryRows } from "@backend/lib/mysql";
+
+export const dynamic = "force-dynamic";
+
+const ALLOWED_STATUSES = ["New", "Reviewed", "Shortlisted", "Visa Processing", "Placed", "Rejected"] as const;
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -11,46 +17,86 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const downloadId = url.searchParams.get("download");
-    const supabase = createSupabaseAdminClient();
 
     if (downloadId) {
-      const { data: application, error } = await supabase
-        .from("job_applications")
-        .select("application_id, cv_name, cv_type, cv_size, cv_data")
-        .eq("application_id", downloadId)
-        .maybeSingle();
-      if (error) throw error;
-      if (!application) return NextResponse.json({ error: "Attachment not found." }, { status: 404 });
-      const cvBytes = Buffer.from(application.cv_data, "base64");
-      if (cvBytes.byteLength !== application.cv_size) {
-        throw new Error("Stored job application attachment has an invalid size.");
-      }
+      const app = await queryOne<RowDataPacket>(
+        `SELECT application_id, cv_name, cv_type, cv_size, cv_data
+         FROM job_applications WHERE application_id = ? LIMIT 1`,
+        [downloadId],
+      );
+      if (!app) return NextResponse.json({ error: "Attachment not found." }, { status: 404 });
+      const cvBytes = Buffer.from(app.cv_data, "base64");
       return new NextResponse(cvBytes, {
         headers: {
-          "Content-Type": application.cv_type,
-          "Content-Length": String(application.cv_size),
-          "Content-Disposition": `attachment; filename="${application.cv_name.replace(/["\r\n]/g, "_")}"`,
+          "Content-Type": app.cv_type,
+          "Content-Length": String(cvBytes.byteLength),
+          "Content-Disposition": `attachment; filename="${String(app.cv_name).replace(/["\r\n]/g, "_")}"`,
           "Cache-Control": "private, no-store",
         },
       });
     }
 
-    const [applicationsResult, analyticsResult] = await Promise.all([
-      supabase
-        .from("job_applications")
-        .select(
-          "id, application_id, job_title, destination, full_name, phone, email, experience, notes, cv_name, cv_type, cv_size, status, created_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(500),
-      supabase.rpc("job_application_analytics"),
+    const [applications, totalRow, last30Row, statusRows, monthlyRows, topJobsRows] = await Promise.all([
+      queryRows<RowDataPacket>(
+        `SELECT id, application_id, tracking_code, job_id, job_title, destination, full_name, phone, email,
+                experience, notes, cv_name, cv_type, cv_size, status, staff_notes, created_at, updated_at
+         FROM job_applications
+         ORDER BY created_at DESC
+         LIMIT 500`,
+      ),
+      queryOne<RowDataPacket>(`SELECT COUNT(*) AS cnt FROM job_applications`),
+      queryOne<RowDataPacket>(
+        `SELECT COUNT(*) AS cnt FROM job_applications WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 30 DAY)`,
+      ),
+      queryRows<RowDataPacket>(
+        `SELECT status, COUNT(*) AS cnt FROM job_applications GROUP BY status`,
+      ),
+      queryRows<RowDataPacket>(
+        `SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS count
+         FROM job_applications
+         WHERE created_at >= DATE_FORMAT(DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 5 MONTH), '%Y-%m-01')
+         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+         ORDER BY month ASC`,
+      ),
+      queryRows<RowDataPacket>(
+        `SELECT job_title, destination, COUNT(*) AS count
+         FROM job_applications
+         GROUP BY job_title, destination
+         ORDER BY count DESC, job_title ASC
+         LIMIT 6`,
+      ),
     ]);
-    if (applicationsResult.error) throw applicationsResult.error;
-    if (analyticsResult.error) throw analyticsResult.error;
+
+    const byStatus: Record<string, number> = {
+      New: 0,
+      Reviewed: 0,
+      Shortlisted: 0,
+      "Visa Processing": 0,
+      Placed: 0,
+      Rejected: 0,
+    };
+    for (const row of statusRows) {
+      byStatus[row.status] = Number(row.cnt);
+    }
 
     return NextResponse.json({
-      applications: applicationsResult.data,
-      analytics: analyticsResult.data,
+      applications: applications.map((a) => ({
+        ...a,
+        id: Number(a.id),
+        job_id: a.job_id ? Number(a.job_id) : null,
+        cv_size: Number(a.cv_size),
+      })),
+      analytics: {
+        total: Number(totalRow?.cnt || 0),
+        last30Days: Number(last30Row?.cnt || 0),
+        byStatus,
+        monthly: monthlyRows.map((m) => ({ month: m.month, count: Number(m.count) })),
+        topJobs: topJobsRows.map((j) => ({
+          job_title: j.job_title,
+          destination: j.destination,
+          count: Number(j.count),
+        })),
+      },
     });
   } catch (error) {
     console.error("Could not load job applications", error);
@@ -63,24 +109,29 @@ export async function PATCH(request: Request) {
   if (!user || !hasPermission(user.role, "enquiries.reply")) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-  const body = await request.json().catch(() => null) as { id?: number; status?: string } | null;
-  const statuses = new Set(["New", "Reviewed", "Shortlisted", "Rejected"]);
-  if (!body || !Number.isSafeInteger(body.id) || !body.status || !statuses.has(body.status)) {
+
+  const body = await request.json().catch(() => null) as {
+    id?: number;
+    status?: string;
+    staffNotes?: string;
+  } | null;
+
+  if (!body || !Number.isSafeInteger(body.id) || !body.status ||
+      !ALLOWED_STATUSES.includes(body.status as typeof ALLOWED_STATUSES[number])) {
     return NextResponse.json({ error: "Choose a valid application and status." }, { status: 400 });
   }
+
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data: application, error } = await supabase
-      .from("job_applications")
-      .update({ status: body.status, updated_at: new Date().toISOString() })
-      .eq("id", body.id)
-      .select("id")
-      .maybeSingle();
-    if (error) throw error;
-    if (!application) return NextResponse.json({ error: "Application not found." }, { status: 404 });
-    return NextResponse.json({ ok: true, status: body.status });
+    const result = await updateJobApplicationStatusWithSlotSync({
+      applicationDbId: body.id!,
+      nextStatus: body.status as typeof ALLOWED_STATUSES[number],
+      staffNote: body.staffNotes,
+      staffId: user.id,
+      staffName: user.name,
+    });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Could not update job application status", error);
-    return NextResponse.json({ error: "Could not update application status." }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Could not update application status.";
+    return NextResponse.json({ error: msg }, { status: msg.includes("not found") ? 404 : 409 });
   }
 }

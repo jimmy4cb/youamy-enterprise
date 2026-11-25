@@ -1,19 +1,31 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@backend/lib/supabase/server";
+import type { RowDataPacket } from "mysql2/promise";
+import { getCurrentCustomer } from "@backend/lib/customer-auth";
+import { queryOne, queryRows } from "@backend/lib/mysql";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const session = await createSupabaseServerClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const customer = await getCurrentCustomer();
+  if (!customer) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+
   const key = new URL(request.url).searchParams.get("key");
   if (!key) return NextResponse.json({ error: "Checkout key is required." }, { status: 400 });
-  const admin = createSupabaseAdminClient();
-  const { data: order, error } = await admin.from("orders")
-    .select("id,payment_status,order_items(product_id)")
-    .eq("user_id", user.id).eq("checkout_key", key).maybeSingle();
-  if (error) return NextResponse.json({ error: "Could not check the last checkout." }, { status: 500 });
+
+  const order = await queryOne<RowDataPacket>(
+    `SELECT id, payment_status FROM orders WHERE customer_id = ? AND checkout_key = ? LIMIT 1`,
+    [customer.id, key],
+  );
+  if (!order || order.payment_status !== "paid") {
+    return NextResponse.json({ paid: false, productIds: [] });
+  }
+
+  const items = await queryRows<RowDataPacket>(
+    `SELECT product_id FROM order_items WHERE order_id = ? AND product_id IS NOT NULL`,
+    [order.id],
+  );
   return NextResponse.json({
-    paid: order?.payment_status === "paid",
-    productIds: order?.payment_status === "paid" ? order.order_items.map((item) => item.product_id).filter(Boolean) : [],
+    paid: true,
+    productIds: items.map((i) => i.product_id),
   });
 }

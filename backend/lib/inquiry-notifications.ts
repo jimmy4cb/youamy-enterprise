@@ -1,13 +1,14 @@
-type InquiryEmail = {
+export type InquiryEmail = {
   id: number;
+  tracking_code?: string;
   listing_title: string;
   division: string;
   inquiry_type: string;
-  client_name: string;
-  client_phone: string;
-  questions: string;
-  created_by: string;
-  created_at: string;
+  full_name: string;
+  phone: string;
+  email?: string;
+  message: string;
+  created_at: string | Date;
 };
 
 export type InquiryEmailResult = {
@@ -22,7 +23,7 @@ export async function emailInquiryToTeam(inquiry: InquiryEmail): Promise<Inquiry
   if (!apiKey || !from || !to) {
     return {
       status: "not_configured",
-      error: "Set RESEND_API_KEY, RESEND_FROM_EMAIL and INQUIRIES_EMAIL to send inquiry emails.",
+      error: "Email delivery optional; inquiry saved in MySQL.",
     };
   }
 
@@ -35,17 +36,17 @@ export async function emailInquiryToTeam(inquiry: InquiryEmail): Promise<Inquiry
     body: JSON.stringify({
       from,
       to: [to],
-      subject: `New ${inquiry.division.toLowerCase()} inquiry: ${inquiry.listing_title.replace(/[\r\n]/g, " ")}`,
+      subject: `New ${inquiry.division.toLowerCase()} inquiry ${inquiry.tracking_code || ""}: ${inquiry.listing_title || inquiry.inquiry_type}`,
       text: [
-        `Listing: ${inquiry.listing_title}`,
+        `Reference: ${inquiry.tracking_code || inquiry.id}`,
         `Division: ${inquiry.division}`,
-        `Inquiry type: ${inquiry.inquiry_type}`,
-        `Client name: ${inquiry.client_name || "Not provided"}`,
-        `Phone: ${inquiry.client_phone}`,
-        `Preferred date or questions: ${inquiry.questions || "Not provided"}`,
-        `Recorded by: ${inquiry.created_by}`,
-        `Recorded at: ${inquiry.created_at}`,
-        `Inquiry ID: ${inquiry.id}`,
+        `Type: ${inquiry.inquiry_type}`,
+        `Listing: ${inquiry.listing_title || "General"}`,
+        `Client name: ${inquiry.full_name || "Not provided"}`,
+        `Phone: ${inquiry.phone || "Not provided"}`,
+        `Email: ${inquiry.email || "Not provided"}`,
+        `Message: ${inquiry.message || "None"}`,
+        `Recorded at: ${String(inquiry.created_at)}`,
       ].join("\n"),
     }),
   });

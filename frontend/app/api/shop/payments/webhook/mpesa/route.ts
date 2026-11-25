@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
+import type { RowDataPacket } from "mysql2/promise";
+import { confirmOrderPayment, failOrderPayment } from "@backend/lib/business-logic";
 import { notifyClientOrderUpdate } from "@backend/lib/order-notifications";
+import { queryOne } from "@backend/lib/mysql";
 
 async function getMpesaToken() {
   const key = process.env.MPESA_CONSUMER_KEY;
@@ -14,32 +16,35 @@ async function getMpesaToken() {
     cache: "no-store",
   });
   const data = await response.json();
-  if (!response.ok || !data.access_token) throw new Error("Could not verify the M-Pesa transaction.");
+  if (!response.ok || !data.access_token) throw new Error("Could not verify M-Pesa transaction.");
   return { token: data.access_token as string, base };
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json() as {
-      Body?: { stkCallback?: { CheckoutRequestID?: string; ResultCode?: number; ResultDesc?: string; CallbackMetadata?: { Item?: Array<{ Name: string; Value?: string | number }> } } };
+      Body?: { stkCallback?: { CheckoutRequestID?: string; ResultCode?: number; CallbackMetadata?: { Item?: Array<{ Name: string; Value?: string | number }> } } };
     };
     const callback = body.Body?.stkCallback;
     const checkoutRequestId = callback?.CheckoutRequestID;
     if (!checkoutRequestId || typeof callback?.ResultCode !== "number") {
       return NextResponse.json({ error: "Invalid callback." }, { status: 400 });
     }
-    const admin = createSupabaseAdminClient();
-    const { data: payment, error } = await admin.from("payments")
-      .select("reference,order_id,amount,metadata,status")
-      .eq("provider", "mpesa")
-      .contains("metadata", { checkout_request_id: checkoutRequestId })
-      .single();
-    if (error || !payment) return NextResponse.json({ error: "Payment attempt not found." }, { status: 404 });
-    if (payment.status !== "pending") return NextResponse.json({ ResultCode: 0, ResultDesc: "Callback already processed" });
+
+    const payment = await queryOne<RowDataPacket>(
+      `SELECT p.reference, p.order_id, p.amount, p.status, o.order_number
+       FROM payments p
+       JOIN orders o ON o.id = p.order_id
+       WHERE p.provider = 'mpesa' AND JSON_UNQUOTE(JSON_EXTRACT(p.metadata, '$.checkout_request_id')) = ?
+       LIMIT 1`,
+      [checkoutRequestId],
+    );
+    if (!payment) return NextResponse.json({ error: "Payment attempt not found." }, { status: 404 });
+    if (payment.status !== "pending") return NextResponse.json({ ResultCode: 0, ResultDesc: "Already processed" });
 
     const shortcode = process.env.MPESA_SHORTCODE;
     const passkey = process.env.MPESA_PASSKEY;
-    if (!shortcode || !passkey) throw new Error("M-Pesa query settings are missing.");
+    if (!shortcode || !passkey) throw new Error("M-Pesa settings are missing.");
     const { token, base } = await getMpesaToken();
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, "").slice(0, 14);
     const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
@@ -56,49 +61,39 @@ export async function POST(request: Request) {
     });
     const query = await queryResponse.json();
     if (!queryResponse.ok || query.ResponseCode !== "0" || query.ResultCode === undefined) {
-      console.error("M-Pesa transaction query was inconclusive", query);
-      return NextResponse.json({ ResultCode: 1, ResultDesc: "Transaction verification is pending" }, { status: 503 });
+      return NextResponse.json({ ResultCode: 1, ResultDesc: "Verification pending" }, { status: 503 });
     }
     if (String(query.ResultCode) !== "0") {
-      await admin.rpc("fail_order_payment", {
-        p_reference: payment.reference,
-        p_status: "failed",
-        p_metadata: { query_result: query.ResultCode || "unverified" },
-      });
-      return NextResponse.json({ ResultCode: 0, ResultDesc: "Transaction could not be verified" });
-    }
-    if (callback.ResultCode !== 0) {
-      return NextResponse.json({ ResultCode: 1, ResultDesc: "Transaction callback is inconsistent" }, { status: 503 });
+      await failOrderPayment(payment.reference, "failed", { query_result: query.ResultCode });
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Transaction failed" });
     }
 
     const items = callback.CallbackMetadata?.Item || [];
-    const value = (name: string) => items.find((item) => item.Name === name)?.Value;
+    const value = (name: string) => items.find((i) => i.Name === name)?.Value;
     const amount = Math.round(Number(value("Amount")));
     const receipt = value("MpesaReceiptNumber");
     if (!Number.isSafeInteger(amount) || !receipt) {
-      return NextResponse.json({ ResultCode: 1, ResultDesc: "Transaction details are incomplete" }, { status: 503 });
+      return NextResponse.json({ ResultCode: 1, ResultDesc: "Incomplete details" }, { status: 503 });
     }
-    const { data: confirmed, error: confirmError } = await admin.rpc("confirm_order_payment", {
-      p_order_id: payment.order_id,
-      p_reference: payment.reference,
-      p_provider: "mpesa",
-      p_provider_transaction_id: String(receipt),
-      p_amount: amount,
-      p_metadata: { receipt: String(receipt || ""), checkout_request_id: checkoutRequestId, phone: String(value("PhoneNumber") || "") },
+
+    const confirmed = await confirmOrderPayment({
+      orderId: payment.order_id,
+      reference: payment.reference,
+      provider: "mpesa",
+      providerTransactionId: String(receipt),
+      amount,
+      metadata: { receipt: String(receipt), checkout_request_id: checkoutRequestId },
     });
-    if (confirmError) throw confirmError;
     if (confirmed) {
-      const { data: order } = await admin.from("orders").select("order_number").eq("id", payment.order_id).single();
       await notifyClientOrderUpdate(
-        admin,
         payment.order_id,
-        `Your Youamy order ${order?.order_number || ""} is placed. Your payment was received.`,
-        `Order ${order?.order_number || ""} placed`,
+        `Your Youamy order ${payment.order_number} is placed. Your payment was received.`,
+        `Order ${payment.order_number} placed`,
       );
     }
     return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment confirmed" });
   } catch (error) {
     console.error("M-Pesa callback processing failed", error);
-    return NextResponse.json({ ResultCode: 1, ResultDesc: "Callback processing failed" }, { status: 500 });
+    return NextResponse.json({ ResultCode: 1, ResultDesc: "Callback failed" }, { status: 500 });
   }
 }

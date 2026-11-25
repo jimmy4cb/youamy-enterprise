@@ -1,14 +1,17 @@
 import { redirect } from "next/navigation";
 import CheckoutForm from "@/components/checkout-form";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@backend/lib/supabase/server";
+import { getCurrentCustomer } from "@backend/lib/customer-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/sign-in?next=/checkout");
-  const admin = createSupabaseAdminClient();
-  const { data: profile } = await admin.from("profiles").select("phone").eq("id", user.id).single();
-  return <CheckoutForm email={user.email || ""} phone={profile?.phone || ""} />;
+  const customer = await getCurrentCustomer();
+  if (!customer) redirect("/sign-in?next=/checkout");
+  return (
+    <CheckoutForm
+      customerName={customer.full_name}
+      email={customer.email || ""}
+      phone={customer.phone || ""}
+    />
+  );
 }

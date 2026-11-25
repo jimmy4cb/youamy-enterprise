@@ -1,141 +1,195 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { SiteHeader, SiteFooter } from "@/components/site-shell";
 
 export default function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
   const nextPath = params.get("next") || "/checkout";
-  const [method, setMethod] = useState<"email" | "phone">("email");
-  const [step, setStep] = useState<"details" | "code">("details");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [identifier, setIdentifier] = useState("");
-  const [profile, setProfile] = useState({ full_name: "", phone: "" });
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  async function sendCode(event: FormEvent<HTMLFormElement>) {
+  const safeNextPath = nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/checkout";
+
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const supabase = createSupabaseBrowserClient();
-      const login = method === "email"
-        ? await supabase.auth.signInWithOtp({
-            email: identifier.trim(),
-            options: {
-              shouldCreateUser: true,
-              data: { full_name: profile.full_name.trim(), phone: profile.phone.trim() },
-              emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
-            },
-          })
-        : await supabase.auth.signInWithOtp({
-            phone: identifier.trim(),
-            options: {
-              shouldCreateUser: true,
-              data: { full_name: profile.full_name.trim(), phone: profile.phone.trim() },
-            },
-          });
-      if (login.error) throw login.error;
-      setStep("code");
-      setMessage(`We sent a sign-in code to ${identifier}.`);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not send a sign-in code.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const data = new FormData(event.currentTarget);
-      const supabase = createSupabaseBrowserClient();
-      const verification = method === "email"
-        ? await supabase.auth.verifyOtp({ email: identifier.trim(), token: String(data.get("code")), type: "email" })
-        : await supabase.auth.verifyOtp({ phone: identifier.trim(), token: String(data.get("code")), type: "sms" });
-      if (verification.error) throw verification.error;
-      const profileResponse = await fetch("/api/shop/profile", {
-        method: "PATCH",
+      const response = await fetch("/api/shop/auth/login", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify({ identifier, password }),
       });
-      if (!profileResponse.ok) {
-        const result = await profileResponse.json();
-        throw new Error(result.error || "Signed in, but your profile could not be saved.");
-      }
-      const safeNextPath = nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/checkout";
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Sign in failed.");
       router.replace(safeNextPath);
       router.refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not verify the code.");
-    } finally {
+      setError(reason instanceof Error ? reason.message : "Could not sign in.");
       setBusy(false);
     }
   }
 
-  async function googleSignIn() {
+  async function submitRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
     setError("");
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}` },
+      const response = await fetch("/api/shop/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, email, phone, password }),
       });
-      if (oauthError) throw oauthError;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not create account.");
+      router.replace(safeNextPath);
+      router.refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not start Google sign-in.");
+      setError(reason instanceof Error ? reason.message : "Could not create account.");
+      setBusy(false);
     }
   }
 
   return (
-    <main className="journey-page">
-      <section className="journey-panel">
-        <p className="section-kicker">Youamy client account</p>
-        <h1>{step === "code" ? "Check your messages" : "Sign in or create an account"}</h1>
-        <p className="journey-intro">Your cart stays on this device while you sign in. You’ll return straight to checkout.</p>
-        {step === "details" ? (
-          <>
-            <button type="button" className="journey-google" onClick={googleSignIn}>Continue with Google</button>
-            <div className="journey-divider"><span>or continue with a code</span></div>
-            <div className="journey-methods">
-              <button type="button" className={method === "email" ? "active" : ""} onClick={() => setMethod("email")}>Email</button>
-              <button type="button" className={method === "phone" ? "active" : ""} onClick={() => setMethod("phone")}>Phone / SMS</button>
-            </div>
-            <form className="journey-form" onSubmit={sendCode}>
-              <label>Your name<input value={profile.full_name} onChange={(event) => setProfile({ ...profile, full_name: event.target.value })} autoComplete="name" required /></label>
-              <label>Phone number<input value={profile.phone} onChange={(event) => setProfile({ ...profile, phone: event.target.value })} autoComplete="tel" type="tel" required /></label>
-              <label>{method === "email" ? "Email address" : "Mobile number"}
+    <>
+      <SiteHeader />
+      <main className="journey-page">
+        <section className="journey-panel">
+          <p className="section-kicker">Youamy client account</p>
+          <h1>{mode === "login" ? "Sign in to your account" : "Create your client account"}</h1>
+          <p className="journey-intro">
+            Your cart stays saved on this device. Sign in to manage bookings, view receipts, and pay securely.
+          </p>
+
+          <div className="journey-methods" role="tablist" aria-label="Account action">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "login"}
+              className={mode === "login" ? "active" : ""}
+              onClick={() => { setMode("login"); setError(""); }}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "register"}
+              className={mode === "register" ? "active" : ""}
+              onClick={() => { setMode("register"); setError(""); }}
+            >
+              Create account
+            </button>
+          </div>
+
+          {mode === "login" ? (
+            <form className="journey-form" onSubmit={submitLogin}>
+              <label>
+                Email address or phone number
                 <input
-                  type={method === "email" ? "email" : "tel"}
-                  autoComplete={method === "email" ? "email" : "tel"}
                   value={identifier}
-                  onChange={(event) => setIdentifier(event.target.value)}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="client@example.com or +254 712 345 678"
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
               </label>
               {error && <p className="journey-error">{error}</p>}
               <button type="submit" disabled={busy}>
-                {busy ? "Sending code…" : method === "phone" ? "Continue with phone" : "Continue with email"}
+                {busy ? "Signing in…" : "Sign in and continue"}
+              </button>
+
+              <div className="demo-account-box">
+                <div>
+                  <strong>Demo client account</strong>
+                  <span>client@youamyenterprises.com · ClientDemo!2026</span>
+                </div>
+                <button
+                  type="button"
+                  className="journey-secondary"
+                  onClick={() => {
+                    setIdentifier("client@youamyenterprises.com");
+                    setPassword("ClientDemo!2026");
+                  }}
+                >
+                  Fill demo
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form className="journey-form" onSubmit={submitRegister}>
+              <label>
+                Full name
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                  required
+                />
+              </label>
+              <label>
+                Phone number (M-Pesa / WhatsApp)
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+254 7xx xxx xxx"
+                  autoComplete="tel"
+                  required
+                />
+              </label>
+              <label>
+                Email address (optional if phone provided)
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                />
+              </label>
+              <label>
+                Password (at least 8 characters)
+                <input
+                  type="password"
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </label>
+              {error && <p className="journey-error">{error}</p>}
+              <button type="submit" disabled={busy}>
+                {busy ? "Creating account…" : "Create account and continue"}
               </button>
             </form>
-          </>
-        ) : (
-          <form className="journey-form" onSubmit={verifyCode}>
-            <p>{message}</p>
-            <label>6-digit code<input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required /></label>
-            {error && <p className="journey-error">{error}</p>}
-            <button type="submit" disabled={busy}>{busy ? "Verifying…" : "Verify and continue"}</button>
-            <button type="button" className="journey-secondary" onClick={() => setStep("details")}>Change sign-in details</button>
-          </form>
-        )}
-        {error && step === "details" && <p className="journey-error">{error}</p>}
-        <a className="journey-back" href="/cart">Back to cart</a>
-      </section>
-    </main>
+          )}
+
+          <Link className="journey-back" href="/cart">Back to cart</Link>
+        </section>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

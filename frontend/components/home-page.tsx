@@ -1,32 +1,66 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import ProductBrowser from "@/components/product-browser";
 import AppointmentBooking, { type AppointmentType } from "@/components/appointment-booking";
+import { SiteHeader, SiteFooter } from "@/components/site-shell";
+import { PanelSkeleton } from "@/components/skeletons";
 import {
   company,
   divisions,
   emailLink,
-  jobListings,
+  jobListings as fallbackJobs,
   officeCoordinates,
-  propertyListings,
-  vehicleListings,
+  propertyListings as fallbackProperties,
+  vehicleListings as fallbackVehicles,
   whatsappLink,
 } from "@/components/site-data";
 
 type DivisionId = "jobs" | "vehicles" | "real-estate" | "sanitation";
-type DialogType = "cart" | "signin" | "tracking" | null;
 
-const navigation = [
-  ["Gulf Recruitment", "#jobs"],
-  ["Auto Marketplace", "#vehicles"],
-  ["Real Estate", "#real-estate"],
-  ["Sanitation", "#sanitation"],
-  ["About", "#about"],
-  ["Contact", "#contact"],
-];
+type JobCardItem = {
+  id?: number;
+  title: string;
+  destination: string;
+  role: string;
+  openings: string;
+  openings_count?: number;
+  compensation: string;
+  requirements: string;
+  benefits?: string;
+  deadline: string;
+};
+
+type VehicleCardItem = {
+  id?: string;
+  title: string;
+  year: string;
+  price: string;
+  details: string;
+  status: string;
+  imageUrls: string[];
+};
+
+type PropertyCardItem = {
+  id?: string;
+  title: string;
+  location: string;
+  price: string;
+  status: string;
+  imageUrls: string[];
+};
+
+type TrackingResult = {
+  kind: "job_application" | "appointment" | "inquiry" | "order";
+  trackingCode: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  detail?: string;
+  submittedAt: string;
+  timeline?: Array<{ status: string; note: string; createdAt: string }>;
+};
 
 function PhotoSlider({
   imageUrls,
@@ -40,23 +74,24 @@ function PhotoSlider({
   className: string;
 }) {
   const [photoIndex, setPhotoIndex] = useState(0);
+  const safeUrls = imageUrls.length ? imageUrls : ["/yel-logo.jpg"];
   const previousPhoto = () => {
-    setPhotoIndex((current) => (current - 1 + imageUrls.length) % imageUrls.length);
+    setPhotoIndex((current) => (current - 1 + safeUrls.length) % safeUrls.length);
   };
   const nextPhoto = () => {
-    setPhotoIndex((current) => (current + 1) % imageUrls.length);
+    setPhotoIndex((current) => (current + 1) % safeUrls.length);
   };
 
   return (
     <div className={className}>
       <Image
-        src={imageUrls[photoIndex]}
+        src={safeUrls[photoIndex]}
         alt={`${alt} photo ${photoIndex + 1}`}
         fill
         unoptimized
         sizes="(max-width: 700px) 100vw, 33vw"
       />
-      {imageUrls.length > 1 && (
+      {safeUrls.length > 1 && (
         <>
           <button type="button" className="photo-slider-button previous" onClick={previousPhoto} aria-label={`Previous photo of ${alt}`}>
             ‹
@@ -64,8 +99,8 @@ function PhotoSlider({
           <button type="button" className="photo-slider-button next" onClick={nextPhoto} aria-label={`Next photo of ${alt}`}>
             ›
           </button>
-          <span className="photo-count" aria-label={`Photo ${photoIndex + 1} of ${imageUrls.length}`}>
-            {photoIndex + 1} / {imageUrls.length}
+          <span className="photo-count" aria-label={`Photo ${photoIndex + 1} of ${safeUrls.length}`}>
+            {photoIndex + 1} / {safeUrls.length}
           </span>
         </>
       )}
@@ -90,8 +125,18 @@ function DivisionGlyph({ id }: { id: DivisionId }) {
 }
 
 export default function HomePage() {
-  const [dialog, setDialog] = useState<DialogType>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [trackingOpen, setTrackingOpen] = useState(false);
+  const [trackCode, setTrackCode] = useState("");
+  const [trackContact, setTrackContact] = useState("");
+  const [trackBusy, setTrackBusy] = useState(false);
+  const [trackError, setTrackError] = useState("");
+  const [trackResults, setTrackResults] = useState<TrackingResult[]>([]);
+  const [trackSearched, setTrackSearched] = useState(false);
+
+  const [jobs, setJobs] = useState<JobCardItem[]>(fallbackJobs);
+  const [vehicles, setVehicles] = useState<VehicleCardItem[]>(fallbackVehicles);
+  const [properties, setProperties] = useState<PropertyCardItem[]>(fallbackProperties);
+
   const [jobSearch, setJobSearch] = useState("");
   const [jobCountry, setJobCountry] = useState("All Gulf Countries");
   const [jobCategory, setJobCategory] = useState("All Job Categories");
@@ -100,42 +145,261 @@ export default function HomePage() {
     target: string;
   } | null>(null);
   const [jobApplication, setJobApplication] = useState<{
+    id?: number;
     title: string;
     destination: string;
   } | null>(null);
   const [applicationBusy, setApplicationBusy] = useState(false);
   const [applicationError, setApplicationError] = useState("");
   const [applicationNotice, setApplicationNotice] = useState("");
+  const [applicationTrackingCode, setApplicationTrackingCode] = useState("");
+
+  const [enquiryBusy, setEnquiryBusy] = useState(false);
+  const [enquiryError, setEnquiryError] = useState("");
+  const [enquiryNotice, setEnquiryNotice] = useState("");
+  const [enquiryWhatsAppUrl, setEnquiryWhatsAppUrl] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialTrack = params.get("track");
+    if (initialTrack) {
+      setTrackCode(initialTrack);
+      setTrackingOpen(true);
+      void runTrackLookup(initialTrack, "");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const sections = Array.from(
+      document.querySelectorAll<HTMLElement>(".divisions-section, .jobs-section, .inventory-section, .shop-catalog, .sanitation-section, .about-faq-section, .contact-section"),
+    );
+    if (!sections.length) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+      sections.forEach((el) => el.classList.add("reveal-visible"));
+      return;
+    }
+
+    sections.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight * 0.95) {
+        el.classList.add("reveal-visible");
+      } else {
+        el.classList.add("reveal-pending");
+      }
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.remove("reveal-pending");
+            entry.target.classList.add("reveal-visible");
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.01, rootMargin: "0px 0px -10px 0px" },
+    );
+
+    sections.forEach((el) => {
+      if (el.classList.contains("reveal-pending")) {
+        observer.observe(el);
+      }
+    });
+
+    const revealOnJump = () => {
+      sections.forEach((el) => {
+        if (el.classList.contains("reveal-pending") && el.getBoundingClientRect().top <= window.innerHeight * 1.05) {
+          el.classList.remove("reveal-pending");
+          el.classList.add("reveal-visible");
+          observer.unobserve(el);
+        }
+      });
+    };
+    window.addEventListener("scroll", revealOnJump, { passive: true });
+    revealOnJump();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", revealOnJump);
+    };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/catalog")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        if (Array.isArray(data.jobs) && data.jobs.length > 0) {
+          setJobs(
+            data.jobs.map((j: {
+              id: number;
+              title: string;
+              destination_country: string;
+              destination_city: string;
+              role_category: string;
+              openings_remaining: number;
+              compensation_display: string;
+              requirements: string;
+              benefits: string;
+              deadline: string;
+            }) => ({
+              id: j.id,
+              title: j.title,
+              destination: `${j.destination_country} · ${j.destination_city}`,
+              role: j.role_category,
+              openings: j.openings_remaining > 0 ? `${j.openings_remaining} openings` : "Positions filled",
+              openings_count: j.openings_remaining,
+              compensation: j.compensation_display,
+              requirements: j.requirements,
+              benefits: j.benefits,
+              deadline: j.deadline,
+            })),
+          );
+        }
+        if (Array.isArray(data.products) && data.products.length > 0) {
+          type CatalogProduct = {
+            id: string;
+            title: string;
+            division: string;
+            description: string;
+            location: string;
+            specs?: Record<string, string>;
+            image_urls: string[];
+            amount_kes: number;
+            price_unit: string;
+            status: string;
+          };
+          const dbVehicles = (data.products as CatalogProduct[]).filter((p) => p.division === "Vehicles");
+          if (dbVehicles.length > 0) {
+            setVehicles(
+              dbVehicles.map((v) => ({
+                id: v.id,
+                title: v.title,
+                year: v.specs?.year || v.location || "Verified vehicle",
+                price: `Ksh ${Number(v.amount_kes).toLocaleString("en-KE")}${v.price_unit === "per_day" ? " / day" : ""}`,
+                details: v.description,
+                status: v.status === "available" ? "Available" : v.status,
+                imageUrls: v.image_urls?.length ? v.image_urls : ["/vehicles/prado-txl-exterior.jpg"],
+              })),
+            );
+          }
+          const dbProperties = (data.products as CatalogProduct[]).filter((p) => p.division === "Real Estate");
+          if (dbProperties.length > 0) {
+            setProperties(
+              dbProperties.map((p) => ({
+                id: p.id,
+                title: p.title,
+                location: p.location || "Kenya",
+                price: `Ksh ${Number(p.amount_kes).toLocaleString("en-KE")}${p.price_unit === "per_night" ? " / night" : ""}`,
+                status: p.status === "available" ? "Available" : p.status,
+                imageUrls: p.image_urls?.length ? p.image_urls : ["/properties/nyali-villa-exterior.jpg"],
+              })),
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const jobCountries = useMemo(
-    () => ["All Gulf Countries", ...new Set(jobListings.map((job) => job.destination.split(" · ")[0]))],
-    [],
+    () => ["All Gulf Countries", ...new Set(jobs.map((job) => job.destination.split(" · ")[0]))],
+    [jobs],
   );
   const jobCategories = useMemo(
-    () => ["All Job Categories", ...new Set(jobListings.map((job) => job.role))],
-    [],
+    () => ["All Job Categories", ...new Set(jobs.map((job) => job.role))],
+    [jobs],
   );
-  const filteredJobs = useMemo(() => jobListings.filter((job) => {
-    const matchesCountry = jobCountry === "All Gulf Countries" || job.destination.startsWith(jobCountry);
-    const matchesCategory = jobCategory === "All Job Categories" || job.role === jobCategory;
-    const matchesSearch = `${job.title} ${job.destination} ${job.requirements}`
-      .toLowerCase()
-      .includes(jobSearch.trim().toLowerCase());
-    return matchesCountry && matchesCategory && matchesSearch;
-  }), [jobCategory, jobCountry, jobSearch]);
+  const filteredJobs = useMemo(
+    () =>
+      jobs.filter((job) => {
+        const matchesCountry = jobCountry === "All Gulf Countries" || job.destination.startsWith(jobCountry);
+        const matchesCategory = jobCategory === "All Job Categories" || job.role === jobCategory;
+        const matchesSearch = `${job.title} ${job.destination} ${job.requirements}`
+          .toLowerCase()
+          .includes(jobSearch.trim().toLowerCase());
+        return matchesCountry && matchesCategory && matchesSearch;
+      }),
+    [jobs, jobCategory, jobCountry, jobSearch],
+  );
 
-  function submitEnquiry(event: FormEvent<HTMLFormElement>) {
+  async function runTrackLookup(codeInput?: string, contactInput?: string) {
+    const code = (codeInput ?? trackCode).trim();
+    const contact = (contactInput ?? trackContact).trim();
+    if (!code && !contact) {
+      setTrackError("Enter a tracking reference (e.g. YEL-APP-...) or your phone/email.");
+      return;
+    }
+    setTrackBusy(true);
+    setTrackError("");
+    setTrackSearched(false);
+    try {
+      const params = new URLSearchParams();
+      if (code) params.set("code", code);
+      if (contact) params.set("contact", contact);
+      const response = await fetch(`/api/track?${params.toString()}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not look up status.");
+      setTrackResults(data.results || []);
+      setTrackSearched(true);
+    } catch (reason) {
+      setTrackError(reason instanceof Error ? reason.message : "Lookup failed.");
+    } finally {
+      setTrackBusy(false);
+    }
+  }
+
+  async function submitEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const fullName = String(formData.get("name") || "").trim();
+    const phone = String(formData.get("phone") || "").trim();
     const email = String(formData.get("email") || "").trim();
-    const message = [
-      `Hello Youamy Enterprises, my name is ${String(formData.get("name"))}.`,
-      `My phone number is ${String(formData.get("phone"))}.`,
-      email ? `My email address is ${email}.` : "",
-      `I am enquiring about ${String(formData.get("service"))}.`,
-      String(formData.get("message")),
-    ].join(" ");
+    const service = String(formData.get("service") || "").trim();
+    const message = String(formData.get("message") || "").trim();
 
-    window.location.assign(whatsappLink(message));
+    setEnquiryBusy(true);
+    setEnquiryError("");
+    setEnquiryNotice("");
+
+    const waText = [
+      `Hello Youamy Enterprises, my name is ${fullName}.`,
+      `Phone: ${phone}.`,
+      email ? `Email: ${email}.` : "",
+      `Enquiry regarding: ${service}.`,
+      message,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    setEnquiryWhatsAppUrl(whatsappLink(waText));
+
+    try {
+      const response = await fetch("/api/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName,
+          phone,
+          email,
+          division: service,
+          subject: service,
+          message,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not submit your enquiry.");
+      setEnquiryNotice(
+        `Enquiry received (${result.trackingCode}). Our team will reach out shortly, or you can continue directly on WhatsApp below.`,
+      );
+      form.reset();
+    } catch (reason) {
+      setEnquiryError(reason instanceof Error ? reason.message : "Could not submit enquiry.");
+    } finally {
+      setEnquiryBusy(false);
+    }
   }
 
   async function submitJobApplication(event: FormEvent<HTMLFormElement>) {
@@ -145,7 +409,9 @@ export default function HomePage() {
     setApplicationBusy(true);
     setApplicationError("");
     setApplicationNotice("");
-    const formData = new FormData(event.currentTarget);
+    setApplicationTrackingCode("");
+    const formData = new FormData(form);
+    if (jobApplication.id) formData.set("jobId", String(jobApplication.id));
     formData.set("jobTitle", jobApplication.title);
     formData.set("destination", jobApplication.destination);
     try {
@@ -156,6 +422,7 @@ export default function HomePage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not submit your application.");
       setApplicationNotice(result.notice);
+      setApplicationTrackingCode(result.trackingCode || "");
       form.reset();
     } catch (reason) {
       setApplicationError(reason instanceof Error ? reason.message : "Could not submit your application.");
@@ -166,97 +433,12 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen">
-      <div className="contact-strip">
-        <div className="site-container strip-content">
-          <a href={`tel:${company.phoneLink}`}>{company.phone}</a>
-          <span className="strip-divider" aria-hidden="true">
-            /
-          </span>
-          <a href={`mailto:${company.email}`}>{company.email}</a>
-          <span className="strip-location">Licensed Recruitment · Auto · Real Estate · Sanitation</span>
-        </div>
-      </div>
-
-      <header className="site-header">
-        <div className="site-container header-content">
-          <a className="brand" href="#home" aria-label="Youamy Enterprises home">
-            <Image
-              className="brand-logo"
-              src="/yel-logo.jpg"
-              alt="Youamy Enterprises Limited logo"
-              width={78}
-              height={58}
-              priority
-            />
-            <span className="brand-copy">
-              <span className="brand-youamy">YOUAMY</span>
-              <span className="brand-enterprises">ENTERPRISES</span>
-              <span className="brand-limited">LIMITED · MULTI-SERVICE GROUP</span>
-            </span>
-          </a>
-
-          <nav
-            className={`main-nav${mobileMenuOpen ? " main-nav-open" : ""}`}
-            aria-label="Main navigation"
-          >
-            {navigation.map(([label, href]) => (
-              <a
-                href={href}
-                key={href}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {label}
-              </a>
-            ))}
-            <Link
-              className="nav-action nav-action-mobile"
-              href="/cart"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Cart
-            </Link>
-            <Link
-              className="nav-action nav-action-mobile nav-signin-mobile"
-              href="/sign-in"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Client sign in
-            </Link>
-          </nav>
-
-          <div className="header-actions">
-            <Link
-              className="nav-action cart-action"
-              href="/cart"
-            >
-              Cart
-            </Link>
-            <Link
-              className="nav-action sign-in-action"
-              href="/sign-in"
-            >
-              Client sign in
-            </Link>
-            <button
-              className="menu-toggle"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileMenuOpen}
-              onClick={() => setMobileMenuOpen((isOpen) => !isOpen)}
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader onOpenTrack={() => setTrackingOpen(true)} />
 
       <section className="hero" id="home">
         <div className="site-container hero-grid">
           <div className="hero-copy">
-            <p className="eyebrow">
-              ✦ &nbsp; ONE COMPANY · FOUR CORE DIVISIONS
-            </p>
+            <p className="eyebrow">✦ &nbsp; ONE COMPANY · FOUR CORE DIVISIONS</p>
             <h1>
               Empowering Careers,
               <span>Mobility, Property &amp; Clean Communities.</span>
@@ -264,7 +446,7 @@ export default function HomePage() {
             <p className="hero-intro">
               Welcome to Youamy Enterprises Limited—your premier gateway to
               verified Gulf employment, quality motor vehicles, prime real
-              estate investments, and professional sanitation services.
+              estate investments, and professional sanitation services across Kenya &amp; the GCC.
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href="#jobs">
@@ -280,16 +462,53 @@ export default function HomePage() {
                 Browse Vehicles
               </a>
               <button
+                type="button"
                 className="button button-outline"
-                onClick={() => setDialog("tracking")}
+                onClick={() => setTrackingOpen(true)}
               >
-                Track Application
+                Track Application / Request
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M5 12h14m-6-6 6 6-6 6" />
                 </svg>
               </button>
             </div>
+            <p className="hero-note">
+              Need instant M-Pesa checkout or bookings? Jump straight to our <a href="#shop" style={{ color: "#efd565", textDecoration: "underline" }}>Online Shop &amp; Rentals</a>.
+            </p>
           </div>
+
+          <aside className="hero-art" aria-label="Live YEL highlights">
+            <div className="hero-board">
+              <div className="board-topline">
+                <span className="board-logo">Y</span>
+                <span>YOUAMY ENTERPRISES · LIVE OPERATIONS</span>
+                <span className="board-dot" aria-hidden="true" />
+              </div>
+              <div className="board-main">
+                <div className="board-main-text">
+                  <span>MOMBASA &amp; GCC</span>
+                  <strong>Trusted multi-service partner.</strong>
+                </div>
+                <div className="board-illustration" aria-hidden="true">
+                  <div className="illustration-sun" />
+                  <div className="illustration-building building-one" />
+                  <div className="illustration-building building-two" />
+                  <div className="illustration-road" />
+                  <div className="illustration-car">YEL</div>
+                </div>
+              </div>
+              <div className="board-tags">
+                <span>{jobs.length} Gulf Roles Active</span>
+                <span>{vehicles.length} Verified Vehicles</span>
+                <span>{properties.length} Prime Properties</span>
+                <span>24/7 Sanitation Fleet</span>
+              </div>
+            </div>
+            <div className="hero-art-stamp">
+              <span>LICENSED</span>
+              <strong>KENYA</strong>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -323,7 +542,9 @@ export default function HomePage() {
           <div className="recruitment-banner">
             <p className="recruitment-eyebrow">Overseas manpower placement</p>
             <h2>Gulf Recruitment Portal</h2>
-            <p>Apply for verified jobs across Saudi Arabia, Qatar, UAE, Oman and Kuwait. Our team will guide you through the application and visa process.</p>
+            <p>
+              Apply for verified jobs across Saudi Arabia, Qatar, UAE, Oman and Kuwait. Every submission receives a tracking code for transparent visa &amp; interview progress.
+            </p>
             <div className="recruitment-country-tabs" aria-label="Filter jobs by country">
               {jobCountries.map((country) => (
                 <button
@@ -363,7 +584,7 @@ export default function HomePage() {
 
           <div className="recruitment-job-list">
             {filteredJobs.map((listing) => (
-              <article className="recruitment-job-card" key={listing.title}>
+              <article className="recruitment-job-card" key={`${listing.id ?? listing.title}`}>
                 <div className="recruitment-job-info">
                   <div className="job-card-top">
                     <span>{listing.destination}</span>
@@ -376,11 +597,13 @@ export default function HomePage() {
                   </p>
                   <p className="job-requirements"><strong>Requirements:</strong> {listing.requirements}</p>
                   <p className="job-benefits">
-                    <strong>Benefits:</strong> {listing.role === "Healthcare"
-                      ? "Housing allowance, health cover and annual leave."
-                      : listing.role === "Security Services"
-                        ? "Accommodation, uniform and medical insurance."
-                        : "Contract benefits and support from the recruitment team."}
+                    <strong>Benefits:</strong>{" "}
+                    {listing.benefits ||
+                      (listing.role === "Healthcare"
+                        ? "Housing allowance, health cover and annual leave."
+                        : listing.role === "Security Services"
+                          ? "Accommodation, uniform and medical insurance."
+                          : "Contract benefits and support from the recruitment team.")}
                     <span> · Deadline: {listing.deadline}</span>
                   </p>
                 </div>
@@ -388,18 +611,21 @@ export default function HomePage() {
                   <button
                     type="button"
                     className="button button-primary"
+                    disabled={listing.openings_count === 0}
                     onClick={() => {
                       setApplicationError("");
                       setApplicationNotice("");
+                      setApplicationTrackingCode("");
                       setJobApplication({
+                        id: listing.id,
                         title: listing.title,
                         destination: listing.destination,
                       });
                     }}
                   >
-                    Apply with CV
+                    {listing.openings_count === 0 ? "Positions Filled" : "Apply with CV"}
                   </button>
-                  <span>Upload your CV securely with the application.</span>
+                  <span>Instant CV upload &amp; tracking ID.</span>
                 </div>
               </article>
             ))}
@@ -425,8 +651,8 @@ export default function HomePage() {
             </a>
           </div>
           <div className="market-grid">
-            {vehicleListings.map((listing) => (
-              <article className="market-card" key={listing.title}>
+            {vehicles.map((listing) => (
+              <article className="market-card" key={`${listing.id ?? listing.title}`}>
                 <PhotoSlider
                   imageUrls={listing.imageUrls}
                   alt={listing.title}
@@ -485,13 +711,13 @@ export default function HomePage() {
             </a>
           </div>
           <div className="market-grid">
-            {propertyListings.map((listing, index) => (
-              <article className="market-card" key={listing.title}>
+            {properties.map((listing, index) => (
+              <article className="market-card" key={`${listing.id ?? listing.title}`}>
                 <PhotoSlider
                   imageUrls={listing.imageUrls}
                   alt={listing.title}
                   status={listing.status}
-                  className={`property-photo property-photo-${index + 1}`}
+                  className={`property-photo property-photo-${(index % 3) + 1}`}
                 />
                 <div className="market-card-content">
                   <p className="listing-category">{listing.location}</p>
@@ -637,7 +863,28 @@ export default function HomePage() {
                 </label>
               </div>
               {applicationError && <p className="appointment-error" role="alert">{applicationError}</p>}
-              {applicationNotice && <p className="appointment-success" role="status">{applicationNotice}</p>}
+              {applicationNotice && (
+                <div className="appointment-success" role="status">
+                  <p>{applicationNotice}</p>
+                  {applicationTrackingCode && (
+                    <div className="tracking-code-pill">
+                      Tracking Reference: <strong>{applicationTrackingCode}</strong>{" "}
+                      <button
+                        type="button"
+                        className="tracking-inline-link"
+                        onClick={() => {
+                          setJobApplication(null);
+                          setTrackCode(applicationTrackingCode);
+                          setTrackingOpen(true);
+                          void runTrackLookup(applicationTrackingCode, "");
+                        }}
+                      >
+                        Track status now →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="appointment-submit-row">
                 <button type="submit" className="appointment-submit" disabled={applicationBusy}>
                   {applicationBusy ? "Submitting…" : "Submit application"}
@@ -685,28 +932,25 @@ export default function HomePage() {
                 <summary>Which Gulf countries do you recruit candidates for?</summary>
                 <p>
                   We recruit for Saudi Arabia, Qatar, UAE, Oman and Kuwait,
-                  with transparent visa tracking.
+                  with transparent application and visa tracking.
                 </p>
               </details>
               <details className="faq-item">
                 <summary>Are vehicles inspected and duty-paid?</summary>
                 <p>
-                  Ask our team for the inspection and duty status of the
-                  specific vehicle before booking or paying.
+                  Every listed unit undergoes mechanical verification and NTSA/KRA clearance checks. You can also schedule a physical inspection directly from any listing card.
                 </p>
               </details>
               <details className="faq-item">
                 <summary>Do you offer residential and commercial sanitation?</summary>
                 <p>
-                  Yes. Contact us for residential or commercial cleaning,
-                  septic exhauster services and waste collection.
+                  Yes. We dispatch exhauster trucks, skip bins, and NEMA-licensed waste management teams across Mombasa and the Nairobi corridor.
                 </p>
               </details>
               <details className="faq-item">
-                <summary>How can I track my overseas job application?</summary>
+                <summary>How can I track my job application, appointment or order?</summary>
                 <p>
-                  Use Track Application or contact the recruitment team with
-                  your application reference.
+                  Click <strong>Track Application / Request</strong> at the top of this page and enter your reference code (e.g. YEL-APP-..., YEL-APT-..., YEL-INQ-..., or YEL-ORD-...) or phone number.
                 </p>
               </details>
             </div>
@@ -722,16 +966,14 @@ export default function HomePage() {
               <h2>Visit our offices or send a message</h2>
             </div>
             <p className="section-aside">
-            Questions about recruitment documents, vehicle financing,
-            property titles or sanitation contracts? Reach out directly.
+              Questions about recruitment documents, vehicle financing,
+              property titles or sanitation contracts? Submit directly to our desk.
             </p>
           </div>
           <div className="contact-layout">
             <div className="contact-card">
               <h3>Visit or contact YEL</h3>
-              <address>
-                {company.address}
-              </address>
+              <address>{company.address}</address>
               <div className="contact-detail">
                 <span>Phone</span>
                 <a href={`tel:${company.phoneLink}`}>{company.phone}</a>
@@ -767,7 +1009,7 @@ export default function HomePage() {
             <form className="contact-form" onSubmit={submitEnquiry}>
               <h3>Send an enquiry</h3>
               <p className="form-note">
-                Submitting opens WhatsApp with your message addressed to YEL.
+                Enquiries are logged immediately with a tracking code and routed to the right YEL division.
               </p>
               <div className="form-fields">
                 <label>
@@ -799,11 +1041,11 @@ export default function HomePage() {
                     <option value="" disabled>
                       Select a service
                     </option>
-                    <option>Jobs and recruitment</option>
-                    <option>Vehicle sale or hire</option>
-                    <option>Real estate or Airbnb</option>
-                    <option>Cleaning and sanitation</option>
-                    <option>Other enquiry</option>
+                    <option value="Jobs">Jobs and recruitment</option>
+                    <option value="Vehicles">Vehicle sale or hire</option>
+                    <option value="Real Estate">Real estate or Airbnb</option>
+                    <option value="Sanitation">Cleaning and sanitation</option>
+                    <option value="General">Other enquiry</option>
                   </select>
                 </label>
                 <label className="field-wide">
@@ -816,152 +1058,126 @@ export default function HomePage() {
                   />
                 </label>
               </div>
-              <button className="button button-primary form-submit" type="submit">
-                Continue to WhatsApp
+              {enquiryError && <p className="appointment-error" style={{ marginTop: 14 }} role="alert">{enquiryError}</p>}
+              {enquiryNotice && (
+                <div className="appointment-success" style={{ marginTop: 14 }} role="status">
+                  <p>{enquiryNotice}</p>
+                  {enquiryWhatsAppUrl && (
+                    <a
+                      href={enquiryWhatsAppUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="tracking-inline-link"
+                    >
+                      Also send via WhatsApp →
+                    </a>
+                  )}
+                </div>
+              )}
+              <button className="button button-primary form-submit" type="submit" disabled={enquiryBusy}>
+                {enquiryBusy ? "Sending enquiry…" : "Submit Enquiry"}
               </button>
             </form>
           </div>
         </div>
       </section>
 
-      <footer className="site-footer">
-        <div className="site-container">
-          <div className="footer-main">
-            <div className="footer-brand">
-              <a className="brand brand-footer" href="#home">
-                <Image
-                  className="brand-logo"
-                  src="/yel-logo.jpg"
-                  alt="Youamy Enterprises Limited logo"
-                  width={78}
-                  height={58}
-                />
-                <span className="brand-copy">
-                  <span className="brand-youamy">YOUAMY</span>
-                  <span className="brand-enterprises">ENTERPRISES</span>
-                  <span className="brand-limited">LIMITED · MULTI-SERVICE GROUP</span>
-                </span>
-              </a>
-              <p>{company.tagline}</p>
-            </div>
-            <div className="footer-column">
-              <h3>Business divisions</h3>
-              <a href="#jobs">Jobs & recruitment</a>
-              <a href="#vehicles">Auto marketplace</a>
-              <a href="#real-estate">Real estate</a>
-              <a href="#sanitation">Sanitation services</a>
-            </div>
-            <div className="footer-column">
-              <h3>Quick links</h3>
-              <a href="#about">About YEL</a>
-              <a href="#faq">FAQs</a>
-              <a href="#contact">Contact</a>
-              <a href="/sign-in">Client sign in</a>
-              <a href="/orders">My Orders</a>
-              <a href="/admin">Staff admin</a>
-            </div>
-            <div className="footer-column footer-contact">
-              <h3>Head office &amp; contact</h3>
-              <span>{company.address}</span>
-              <a href={`tel:${company.phoneLink}`}>{company.phone}</a>
-              <a href={`mailto:${company.email}`}>{company.email}</a>
-              <a href={`https://${company.website}`} target="_blank" rel="noreferrer">{company.website}</a>
-            </div>
-          </div>
-          <div className="footer-bottom">
-            <span>© {new Date().getFullYear()} Youamy Enterprises Limited. All rights reserved.</span>
-            <span>Recruitment · Auto · Real Estate · Sanitation</span>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
 
-      <a
-        className="whatsapp-float"
-        href={whatsappLink("Hello Youamy Enterprises, I have a question.")}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Contact Youamy Enterprises on WhatsApp"
-        title="Contact YEL on WhatsApp"
-      >
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M16.1 3A12.9 12.9 0 0 0 5.2 22.5L3.1 29l6.7-2a12.9 12.9 0 1 0 6.3-24Zm0 23.1c-2.1 0-4-.6-5.7-1.7l-.4-.2-4 .1.1-4-.2-.4a10 10 0 1 1 10.2 6.2Zm5.5-7.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2l-1 1.2c-.2.2-.4.2-.7.1-1.8-.9-3-1.6-4.2-3.7-.3-.5.3-.5.9-1.7.1-.2 0-.5 0-.7l-1-2.3c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.5-.3.3-1.2 1.2-1.2 2.9s1.2 3.4 1.4 3.6c.2.2 2.4 3.7 5.9 5.1 2.2.9 3.1.9 4.2.8.7-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.5Z" />
-        </svg>
-        <span>WhatsApp Us <strong>({company.phone})</strong></span>
-      </a>
-
-      {dialog && (
+      {trackingOpen && (
         <div
           className="dialog-backdrop"
           onClick={(event) => {
-            if (event.target === event.currentTarget) setDialog(null);
+            if (event.target === event.currentTarget) setTrackingOpen(false);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Escape") setDialog(null);
+            if (event.key === "Escape") setTrackingOpen(false);
           }}
           role="presentation"
         >
           <section
-            className="dialog-panel"
+            className="dialog-panel tracker-dialog-panel"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="dialog-title"
+            aria-labelledby="tracker-dialog-title"
           >
             <button
               className="dialog-close"
               autoFocus
-              onClick={() => setDialog(null)}
-              aria-label="Close dialog"
+              onClick={() => setTrackingOpen(false)}
+              aria-label="Close tracker"
             >
               ×
             </button>
-            {dialog === "cart" ? (
-              <>
-                <span className="dialog-icon" aria-hidden="true">⌑</span>
-                <h2 id="dialog-title">Your cart</h2>
-                <p>
-                  Cart and checkout are planned for a later stage. For now,
-                  contact YEL directly to ask about a listing.
-                </p>
-                <a
-                  className="button button-primary dialog-button"
-                  href="#contact"
-                  onClick={() => setDialog(null)}
-                >
-                  Contact YEL
-                </a>
-              </>
-            ) : dialog === "tracking" ? (
-              <>
-                <span className="dialog-icon" aria-hidden="true">↗</span>
-                <h2 id="dialog-title">Application tracking</h2>
-                <p>
-                  Application tracking is not connected yet. Contact the YEL
-                  team for help with an enquiry.
-                </p>
-                <a
-                  className="button button-primary dialog-button"
-                  href={whatsappLink("Hello Youamy Enterprises, I need help tracking an application.")}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Contact YEL on WhatsApp
-                </a>
-              </>
-            ) : (
-              <>
-                <span className="dialog-icon" aria-hidden="true">Y</span>
-                <h2 id="dialog-title">Client accounts</h2>
-                <p>
-                  Sign-in with Google, email and phone will be added in Stage 2.
-                  Your account details are not collected on this page.
-                </p>
-                <button
-                  className="button button-blue dialog-button"
-                  onClick={() => setDialog(null)}
-                >
-                  Continue browsing
-                </button>
-              </>
+            <span className="dialog-icon" aria-hidden="true">↗</span>
+            <h2 id="tracker-dialog-title">Track application, booking or order</h2>
+            <p>
+              Enter your reference code (e.g. <code>YEL-APP-...</code>, <code>YEL-APT-...</code>, <code>YEL-ORD-...</code>) or the phone/email used when submitting.
+            </p>
+            <form
+              className="tracker-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void runTrackLookup();
+              }}
+            >
+              <label>
+                Reference code
+                <input
+                  value={trackCode}
+                  onChange={(e) => setTrackCode(e.target.value)}
+                  placeholder="YEL-APP-2026-..."
+                />
+              </label>
+              <label>
+                Or phone / email
+                <input
+                  value={trackContact}
+                  onChange={(e) => setTrackContact(e.target.value)}
+                  placeholder="+2547... or email@example.com"
+                />
+              </label>
+              <button type="submit" className="button button-primary" disabled={trackBusy}>
+                {trackBusy ? "Searching…" : "Check live status"}
+              </button>
+            </form>
+
+            {trackBusy && (
+              <div style={{ marginTop: 16 }}>
+                <PanelSkeleton lines={3} />
+              </div>
+            )}
+
+            {trackError && <p className="journey-error" style={{ marginTop: 12 }}>{trackError}</p>}
+
+            {!trackBusy && trackSearched && trackResults.length === 0 && !trackError && (
+              <p className="tracker-empty">No matching records found. Check your code or contact our desk on WhatsApp.</p>
+            )}
+
+            {trackResults.length > 0 && (
+              <div className="tracker-results">
+                {trackResults.map((item) => (
+                  <article className="tracker-card" key={`${item.kind}-${item.trackingCode}`}>
+                    <div className="tracker-card-head">
+                      <span className="tracker-kind">{item.kind.replace("_", " ")}</span>
+                      <span className="tracker-badge">{item.status}</span>
+                    </div>
+                    <h3>{item.title}</h3>
+                    <p className="tracker-sub">{item.trackingCode} · {item.subtitle}</p>
+                    {item.detail && <p className="tracker-detail">{item.detail}</p>}
+                    {item.timeline && item.timeline.length > 0 && (
+                      <ol className="tracker-timeline">
+                        {item.timeline.map((ev, idx) => (
+                          <li key={idx}>
+                            <strong>{ev.status}</strong>
+                            <span>{new Date(ev.createdAt).toLocaleString("en-KE")} {ev.note ? `· ${ev.note}` : ""}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </article>
+                ))}
+              </div>
             )}
           </section>
         </div>

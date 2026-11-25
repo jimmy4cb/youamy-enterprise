@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "@/styles/globals.css";
+import PlatformChatbot from "@/components/platform-chatbot";
 
 export const metadata: Metadata = {
   title: "Youamy Enterprises Limited | Mombasa",
@@ -26,7 +27,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        {children}
+        <PlatformChatbot />
+      </body>
     </html>
   );
 }

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AdminTableSkeleton } from "@/components/skeletons";
 
-type ApplicationStatus = "New" | "Reviewed" | "Shortlisted" | "Rejected";
+type ApplicationStatus = "New" | "Reviewed" | "Shortlisted" | "Visa Processing" | "Placed" | "Rejected";
 type JobApplication = {
   id: number;
   application_id: string;
+  tracking_code: string;
+  job_id: number | null;
   job_title: string;
   destination: string;
   full_name: string;
@@ -13,6 +16,7 @@ type JobApplication = {
   email: string;
   experience: string;
   notes: string;
+  staff_notes: string | null;
   cv_name: string;
   cv_type: string;
   cv_size: number;
@@ -27,26 +31,28 @@ type Analytics = {
   topJobs: Array<{ job_title: string; destination: string; count: number }>;
 };
 
-const statuses: ApplicationStatus[] = ["New", "Reviewed", "Shortlisted", "Rejected"];
+const statuses: ApplicationStatus[] = ["New", "Reviewed", "Shortlisted", "Visa Processing", "Placed", "Rejected"];
 
 function monthLabel(month: string) {
   return new Date(`${month}-01T12:00:00`).toLocaleDateString("en", { month: "short" });
 }
 
 function applicationDate(date: string) {
-  return new Date(`${date.replace(" ", "T")}Z`).toLocaleDateString("en-KE", {
+  const iso = date.includes("T") ? date : `${date.replace(" ", "T")}Z`;
+  return new Date(iso).toLocaleDateString("en-KE", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
 
-export default function AdminJobApplications() {
+export default function AdminJobApplications({ onChanged }: { onChanged?: () => void }) {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | ApplicationStatus>("All");
   const [jobFilter, setJobFilter] = useState("All jobs");
@@ -76,23 +82,30 @@ export default function AdminJobApplications() {
     () => [...new Set(applications.map((application) => application.job_title))],
     [applications],
   );
+
   const filteredApplications = useMemo(() => {
     const search = query.trim().toLowerCase();
     return applications.filter((application) =>
       (statusFilter === "All" || application.status === statusFilter) &&
       (jobFilter === "All jobs" || application.job_title === jobFilter) &&
-      (!search || [
-        application.full_name,
-        application.email,
-        application.phone,
-        application.job_title,
-        application.destination,
-      ].join(" ").toLowerCase().includes(search)),
+      (!search ||
+        [
+          application.tracking_code,
+          application.full_name,
+          application.email,
+          application.phone,
+          application.job_title,
+          application.destination,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search)),
     );
   }, [applications, jobFilter, query, statusFilter]);
 
   async function updateStatus(application: JobApplication, status: ApplicationStatus) {
     setError("");
+    setNotice("");
     try {
       const response = await fetch("/api/admin/job-applications", {
         method: "PATCH",
@@ -101,19 +114,29 @@ export default function AdminJobApplications() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not update application.");
-      setApplications((current) => current.map((item) =>
-        item.id === application.id ? { ...item, status: result.status } : item,
-      ));
+      setApplications((current) =>
+        current.map((item) => (item.id === application.id ? { ...item, status } : item)),
+      );
       if (analytics && application.status !== status) {
-        setAnalytics((current) => current ? ({
-          ...current,
-          byStatus: {
-            ...current.byStatus,
-            [application.status]: Math.max(0, (current.byStatus[application.status] || 0) - 1),
-            [status]: (current.byStatus[status] || 0) + 1,
-          },
-        }) : current);
+        setAnalytics((current) =>
+          current
+            ? {
+                ...current,
+                byStatus: {
+                  ...current.byStatus,
+                  [application.status]: Math.max(0, (current.byStatus[application.status] || 0) - 1),
+                  [status]: (current.byStatus[status] || 0) + 1,
+                },
+              }
+            : current,
+        );
       }
+      setNotice(
+        status === "Placed"
+          ? `${application.full_name} marked Placed — open slots synced on job listing.`
+          : `Updated ${application.full_name} (${application.tracking_code}) to ${status}.`,
+      );
+      onChanged?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not update application.");
     }
@@ -134,7 +157,7 @@ export default function AdminJobApplications() {
   return (
     <section className="admin-listings application-analytics" id="job-applications">
       <div className="admin-listings-head">
-        <div><p>Recruitment pipeline</p><h2>Application analysis</h2></div>
+        <div><p>Recruitment pipeline</p><h2>Job applications &amp; analytics</h2></div>
         <div className="application-header-actions">
           <span className="admin-inquiry-count">{analytics?.total || 0} applications</span>
           <button type="button" className="application-refresh" onClick={() => void loadApplications(true)} disabled={refreshing}>
@@ -143,27 +166,28 @@ export default function AdminJobApplications() {
         </div>
       </div>
       {error && <p className="journey-error application-error" role="alert">{error}</p>}
+      {notice && <p className="admin-inquiry-notice" style={{ marginTop: 14 }} role="status">{notice}</p>}
 
       <div className="application-overview">
         <article className="application-kpi">
           <span>Applications received</span>
           <strong>{analytics?.total ?? "—"}</strong>
-          <small>All submitted applications</small>
+          <small>All submitted candidates</small>
         </article>
         <article className="application-kpi">
           <span>New to review</span>
-          <strong>{analytics?.byStatus.New ?? "—"}</strong>
-          <small>Awaiting first review</small>
+          <strong>{analytics?.byStatus.New ?? 0}</strong>
+          <small>Awaiting screening</small>
         </article>
         <article className="application-kpi">
-          <span>Shortlisted</span>
-          <strong>{analytics?.byStatus.Shortlisted ?? "—"}</strong>
-          <small>Ready for follow-up</small>
+          <span>Shortlisted / Visa</span>
+          <strong>{(analytics?.byStatus.Shortlisted || 0) + (analytics?.byStatus["Visa Processing"] || 0)}</strong>
+          <small>Active placement pipeline</small>
         </article>
         <article className="application-kpi">
-          <span>Last 30 days</span>
-          <strong>{analytics?.last30Days ?? "—"}</strong>
-          <small>Recent submissions</small>
+          <span>Placed in GCC</span>
+          <strong>{analytics?.byStatus.Placed ?? 0}</strong>
+          <small>{analytics?.last30Days ?? 0} received last 30 days</small>
         </article>
       </div>
 
@@ -188,7 +212,7 @@ export default function AdminJobApplications() {
 
         <section className="application-chart" aria-labelledby="application-status-heading">
           <div className="application-chart-heading">
-            <div><h3 id="application-status-heading">Review pipeline</h3><p>Current application status</p></div>
+            <div><h3 id="application-status-heading">Review pipeline</h3><p>Current application stages</p></div>
           </div>
           <div className="application-status-list">
             {statuses.map((status) => {
@@ -197,7 +221,9 @@ export default function AdminJobApplications() {
               return (
                 <div className="application-status-row" key={status}>
                   <div><span>{status}</span><strong>{count}</strong></div>
-                  <div className="application-status-track"><span className={`status-${status.toLowerCase()}`} style={{ width: `${ratio}%` }} /></div>
+                  <div className="application-status-track">
+                    <span className={`status-${status.toLowerCase().replace(" ", "-")}`} style={{ width: `${ratio}%` }} />
+                  </div>
                 </div>
               );
             })}
@@ -222,11 +248,11 @@ export default function AdminJobApplications() {
       </div>
 
       <div className="application-records-heading">
-        <div><h3>Applicant records</h3><p>Showing {filteredApplications.length} of {applications.length} recent applications</p></div>
+        <div><h3>Applicant records</h3><p>Showing {filteredApplications.length} of {applications.length} applications</p></div>
         <div className="application-filters">
           <label>
             <span className="sr-only">Search applicants</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email or job" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, name, email or job" />
           </label>
           <label>
             <span className="sr-only">Filter by application status</span>
@@ -244,20 +270,18 @@ export default function AdminJobApplications() {
           </label>
         </div>
       </div>
-      {analytics && analytics.total > applications.length && (
-        <p className="application-record-limit">Showing the 500 most recent records; charts use all applications.</p>
-      )}
+
       <div className="admin-table-wrap">
         <table className="admin-table">
           <thead>
-            <tr><th>Applicant</th><th>Job</th><th>Experience</th><th>CV attachment</th><th>Submitted</th><th>Status</th></tr>
+            <tr><th>Applicant</th><th>Job</th><th>Experience</th><th>CV</th><th>Submitted</th><th>Status</th></tr>
           </thead>
           <tbody>
             {filteredApplications.map((application) => (
               <tr key={application.id}>
                 <td>
                   <strong>{application.full_name}</strong>
-                  <span><a href={`tel:${application.phone}`}>{application.phone}</a></span>
+                  <span>{application.tracking_code} · <a href={`tel:${application.phone}`}>{application.phone}</a></span>
                   {application.email && <span>{application.email}</span>}
                 </td>
                 <td>
@@ -287,7 +311,7 @@ export default function AdminJobApplications() {
             ))}
           </tbody>
         </table>
-        {loading && <div className="admin-empty">Loading applications and analytics…</div>}
+        {loading && <AdminTableSkeleton rows={5} cols={6} />}
         {!loading && filteredApplications.length === 0 && !error && (
           <div className="admin-empty">
             {applications.length ? "No applications match these filters." : "Uploaded job applications will appear here."}

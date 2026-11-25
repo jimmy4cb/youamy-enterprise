@@ -9,27 +9,45 @@ export type BrowserCartItem = {
   booking_details: Record<string, string>;
 };
 
-const storageKey = "youamy-browser-cart";
+const key = "youamy-cart";
+
+function notifyCartChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("youamy-cart-changed"));
+  }
+}
 
 export function readCart(): BrowserCartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const saved = window.localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) as BrowserCartItem[] : [];
+    const raw = window.localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 export function writeCart(items: BrowserCartItem[]) {
-  window.localStorage.setItem(storageKey, JSON.stringify(items));
-  window.dispatchEvent(new Event("youamy-cart-change"));
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, JSON.stringify(items));
+  notifyCartChanged();
 }
 
-export function addToCart(item: Omit<BrowserCartItem, "quantity" | "booking_details">) {
+export function cartCount(): number {
+  return readCart().reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+}
+
+export function addToCart(product: Omit<BrowserCartItem, "quantity" | "booking_details">) {
   const items = readCart();
-  const existing = items.find((entry) => entry.product_id === item.product_id);
-  if (existing) existing.quantity = Math.min(existing.quantity + 1, 20);
-  else items.push({ ...item, quantity: 1, booking_details: {} });
-  writeCart(items);
+  const existing = items.find((item) => item.product_id === product.product_id);
+  const next = existing
+    ? items.map((item) =>
+        item.product_id === product.product_id
+          ? { ...item, quantity: Math.min(20, item.quantity + 1) }
+          : item,
+      )
+    : [...items, { ...product, quantity: 1, booking_details: {} }];
+  writeCart(next);
+  return next;
 }
