@@ -1,93 +1,114 @@
 import { NextResponse } from "next/server";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@backend/lib/supabase/server";
+import crypto from "node:crypto";
+import type { RowDataPacket } from "mysql2/promise";
+import { getCurrentCustomer } from "@backend/lib/customer-auth";
+import { parseJsonValue, queryRows, withTransaction } from "@backend/lib/mysql";
+
+export const dynamic = "force-dynamic";
+
+async function ensureCartId(customerId: string): Promise<string> {
+  return withTransaction(async (conn) => {
+    const [rows] = await conn.query<RowDataPacket[]>(`SELECT id FROM carts WHERE customer_id = ? LIMIT 1`, [customerId]);
+    if (rows[0]?.id) return rows[0].id as string;
+    const id = crypto.randomUUID();
+    await conn.execute(`INSERT INTO carts (id, customer_id) VALUES (?, ?)`, [id, customerId]);
+    return id;
+  });
+}
 
 export async function GET() {
-  const session = await createSupabaseServerClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
-  const admin = createSupabaseAdminClient();
-  const { data: cart, error: cartError } = await admin.from("carts").upsert(
-    { user_id: user.id },
-    { onConflict: "user_id" },
-  ).select("id").single();
-  if (cartError) return NextResponse.json({ error: "Could not load your saved cart." }, { status: 500 });
-  const { data, error } = await admin.from("cart_items")
-    .select("product_id,quantity,booking_details,products(id,title,division,image_urls,amount_kes,booking_kind,status)")
-    .eq("cart_id", cart.id);
-  if (error) return NextResponse.json({ error: "Could not load your saved cart." }, { status: 500 });
-  const items = (data || []).flatMap((row) => {
-    const product = Array.isArray(row.products) ? row.products[0] : row.products;
-    if (!product || product.status !== "available") return [];
-    return [{
-      product_id: row.product_id,
-      quantity: row.quantity,
-      booking_details: row.booking_details,
-      ...product,
-    }];
-  });
+  const customer = await getCurrentCustomer();
+  if (!customer) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+
+  const cartId = await ensureCartId(customer.id);
+  const rows = await queryRows<RowDataPacket>(
+    `SELECT ci.product_id, ci.quantity, ci.booking_details,
+            p.title, p.division, p.image_urls, p.amount_kes, p.price_unit, p.booking_kind, p.status, p.purchasable
+     FROM cart_items ci
+     JOIN products p ON p.id = ci.product_id
+     WHERE ci.cart_id = ? AND p.status = 'available' AND p.purchasable = 1`,
+    [cartId],
+  );
+
+  const items = rows.map((row) => ({
+    product_id: row.product_id,
+    quantity: Number(row.quantity),
+    booking_details: parseJsonValue<Record<string, string>>(row.booking_details, {}),
+    id: row.product_id,
+    title: row.title,
+    division: row.division,
+    image_urls: parseJsonValue<string[]>(row.image_urls, []),
+    amount_kes: Number(row.amount_kes),
+    price_unit: row.price_unit,
+    booking_kind: row.booking_kind,
+  }));
+
   return NextResponse.json({ items });
 }
 
 export async function POST(request: Request) {
-  const session = await createSupabaseServerClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
-  const body = await request.json() as { items?: Array<{ product_id: string; quantity: number; booking_details?: object }> };
-  if (!Array.isArray(body.items)) return NextResponse.json({ error: "Invalid cart." }, { status: 400 });
-  const admin = createSupabaseAdminClient();
-  const { data: cart, error: cartError } = await admin.from("carts").upsert(
-    { user_id: user.id },
-    { onConflict: "user_id" },
-  ).select("id").single();
-  if (cartError) return NextResponse.json({ error: "Could not save your cart." }, { status: 500 });
+  const customer = await getCurrentCustomer();
+  if (!customer) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const body = await request.json().catch(() => null) as {
+    items?: Array<{ product_id: string; quantity: number; booking_details?: Record<string, string> }>;
+  } | null;
+  if (!Array.isArray(body?.items)) return NextResponse.json({ error: "Invalid cart." }, { status: 400 });
 
-  for (const item of body.items) {
-    if (!item.product_id || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) continue;
-    const { data: existing } = await admin.from("cart_items")
-      .select("quantity").eq("cart_id", cart.id).eq("product_id", item.product_id).maybeSingle();
-    const { error } = await admin.from("cart_items").upsert({
-      cart_id: cart.id,
-      product_id: item.product_id,
-      quantity: Math.max(existing?.quantity || 0, item.quantity),
-      booking_details: item.booking_details || {},
-    }, { onConflict: "cart_id,product_id" });
-    if (error) return NextResponse.json({ error: "Some cart items could not be saved." }, { status: 400 });
-  }
+  const cartId = await ensureCartId(customer.id);
+  await withTransaction(async (conn) => {
+    for (const item of body.items || []) {
+      if (!item.product_id || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) continue;
+      const [prodRows] = await conn.query<RowDataPacket[]>(
+        `SELECT id FROM products WHERE id = ? AND status = 'available' AND purchasable = 1 LIMIT 1`,
+        [item.product_id],
+      );
+      if (!prodRows.length) continue;
+
+      const [existingRows] = await conn.query<RowDataPacket[]>(
+        `SELECT id, quantity FROM cart_items WHERE cart_id = ? AND product_id = ? LIMIT 1`,
+        [cartId, item.product_id],
+      );
+      if (existingRows.length > 0) {
+        const nextQty = Math.min(20, Math.max(Number(existingRows[0].quantity), item.quantity));
+        await conn.execute(
+          `UPDATE cart_items SET quantity = ?, booking_details = ? WHERE id = ?`,
+          [nextQty, JSON.stringify(item.booking_details || {}), existingRows[0].id],
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO cart_items (id, cart_id, product_id, quantity, booking_details) VALUES (?, ?, ?, ?, ?)`,
+          [crypto.randomUUID(), cartId, item.product_id, item.quantity, JSON.stringify(item.booking_details || {})],
+        );
+      }
+    }
+  });
+
   return NextResponse.json({ ok: true });
 }
 
 export async function PUT(request: Request) {
-  const session = await createSupabaseServerClient();
-  const { data: { user } } = await session.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
-  const body = await request.json() as { items?: Array<{ product_id: string; quantity: number; booking_details?: object }> };
-  if (!Array.isArray(body.items) || body.items.length > 50) {
+  const customer = await getCurrentCustomer();
+  if (!customer) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const body = await request.json().catch(() => null) as {
+    items?: Array<{ product_id: string; quantity: number; booking_details?: Record<string, string> }>;
+  } | null;
+  if (!Array.isArray(body?.items) || body.items.length > 50) {
     return NextResponse.json({ error: "Invalid cart." }, { status: 400 });
   }
   if (body.items.some((item) => !item.product_id || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20)) {
     return NextResponse.json({ error: "Cart item quantities are invalid." }, { status: 400 });
   }
-  const admin = createSupabaseAdminClient();
-  const { data: cart, error: cartError } = await admin.from("carts").upsert(
-    { user_id: user.id },
-    { onConflict: "user_id" },
-  ).select("id").single();
-  if (cartError) return NextResponse.json({ error: "Could not save your cart." }, { status: 500 });
-  if (body.items.length) {
-    const { error } = await admin.from("cart_items").upsert(body.items.map((item) => ({
-      cart_id: cart.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      booking_details: item.booking_details || {},
-    })), { onConflict: "cart_id,product_id" });
-    if (error) return NextResponse.json({ error: "Could not update your cart." }, { status: 400 });
-    const keptIds = body.items.map((item) => item.product_id);
-    const { error: deleteError } = await admin.from("cart_items")
-      .delete().eq("cart_id", cart.id).not("product_id", "in", `(${keptIds.join(",")})`);
-    if (deleteError) return NextResponse.json({ error: "Could not remove old cart items." }, { status: 500 });
-  } else {
-    const { error } = await admin.from("cart_items").delete().eq("cart_id", cart.id);
-    if (error) return NextResponse.json({ error: "Could not clear your cart." }, { status: 500 });
-  }
+
+  const cartId = await ensureCartId(customer.id);
+  await withTransaction(async (conn) => {
+    await conn.execute(`DELETE FROM cart_items WHERE cart_id = ?`, [cartId]);
+    for (const item of body.items || []) {
+      await conn.execute(
+        `INSERT INTO cart_items (id, cart_id, product_id, quantity, booking_details) VALUES (?, ?, ?, ?, ?)`,
+        [crypto.randomUUID(), cartId, item.product_id, item.quantity, JSON.stringify(item.booking_details || {})],
+      );
+    }
+  });
+
   return NextResponse.json({ ok: true });
 }

@@ -3,11 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { SiteHeader, SiteFooter } from "@/components/site-shell";
 import { readCart, writeCart, type BrowserCartItem } from "@/lib/cart-store";
 
 export default function CartPage() {
   const [items, setItems] = useState<BrowserCartItem[]>([]);
   const [syncError, setSyncError] = useState("");
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -15,6 +17,10 @@ export default function CartPage() {
       let localItems = readCart();
       setItems(localItems);
       try {
+        const me = await fetch("/api/shop/auth/me").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (!me?.authenticated) return;
+        if (active) setIsSignedIn(true);
+
         const savedSession = window.localStorage.getItem("youamy-checkout-session");
         if (savedSession) {
           const checkout = JSON.parse(savedSession) as { key?: string };
@@ -63,6 +69,7 @@ export default function CartPage() {
   function update(next: BrowserCartItem[]) {
     setItems(next);
     writeCart(next);
+    if (!isSignedIn) return;
     fetch("/api/shop/cart", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -80,54 +87,58 @@ export default function CartPage() {
   const total = items.reduce((sum, item) => sum + item.amount_kes * item.quantity, 0);
 
   return (
-    <main className="journey-page journey-wide">
-      <header className="journey-page-head">
-        <div><p className="section-kicker">Your selection</p><h1>Your cart</h1></div>
-        <Link href="/">Continue browsing</Link>
-      </header>
-      {items.length === 0 ? (
-        <section className="journey-empty">
-          <h2>Your cart is empty</h2>
-          <p>Browse confirmed listings and add an item to get started.</p>
-          <Link className="button button-primary" href="/#shop">Browse listings</Link>
-        </section>
-      ) : (
-        <div className="cart-layout">
-          {syncError && <p className="journey-error">{syncError}</p>}
-          <section className="cart-items" aria-label="Items in your cart">
-            {items.map((item) => (
-              <article className="cart-item" key={item.product_id}>
-                <div className="cart-thumb">
-                  {item.image_urls[0] && <Image src={item.image_urls[0]} alt="" fill sizes="100px" />}
-                </div>
-                <div className="cart-item-info">
-                  <span>{item.division}</span>
-                  <h2>{item.title}</h2>
-                  <strong>KES {item.amount_kes.toLocaleString("en-KE")}</strong>
-                </div>
-                <label className="cart-quantity">
-                  Quantity
-                  <select
-                    value={item.quantity}
-                    onChange={(event) => update(items.map((entry) => entry.product_id === item.product_id ? { ...entry, quantity: Number(event.target.value) } : entry))}
-                  >
-                    {Array.from({ length: 20 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}
-                  </select>
-                </label>
-                <button className="cart-remove" onClick={() => update(items.filter((entry) => entry.product_id !== item.product_id))}>Remove</button>
-              </article>
-            ))}
+    <>
+      <SiteHeader />
+      <main className="journey-page journey-wide">
+        <header className="journey-page-head">
+          <div><p className="section-kicker">Your selection</p><h1>Your cart</h1></div>
+          <Link href="/#shop">Continue browsing</Link>
+        </header>
+        {items.length === 0 ? (
+          <section className="journey-empty">
+            <h2>Your cart is empty</h2>
+            <p>Browse confirmed listings and add an item to get started.</p>
+            <Link className="button button-primary" href="/#shop">Browse listings</Link>
           </section>
-          <aside className="cart-summary">
-            <h2>Order summary</h2>
-            <p><span>Items ({items.length})</span><strong>KES {total.toLocaleString("en-KE")}</strong></p>
-            <p><span>Payment</span><strong>Full payment</strong></p>
-            <small>Final availability and total are verified at checkout.</small>
-            <Link className="button button-primary" href="/checkout">Go to payment</Link>
-            <p className="cart-signin-note">You’ll sign in before checkout. Your cart will be kept.</p>
-          </aside>
-        </div>
-      )}
-    </main>
+        ) : (
+          <div className="cart-layout">
+            {syncError && <p className="journey-error">{syncError}</p>}
+            <section className="cart-items" aria-label="Items in your cart">
+              {items.map((item) => (
+                <article className="cart-item" key={item.product_id}>
+                  <div className="cart-thumb">
+                    {item.image_urls[0] && <Image src={item.image_urls[0]} alt="" fill sizes="100px" unoptimized />}
+                  </div>
+                  <div className="cart-item-info">
+                    <span>{item.division}</span>
+                    <h2>{item.title}</h2>
+                    <strong>KES {item.amount_kes.toLocaleString("en-KE")}</strong>
+                  </div>
+                  <label className="cart-quantity">
+                    Quantity
+                    <select
+                      value={item.quantity}
+                      onChange={(event) => update(items.map((entry) => entry.product_id === item.product_id ? { ...entry, quantity: Number(event.target.value) } : entry))}
+                    >
+                      {Array.from({ length: 20 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}
+                    </select>
+                  </label>
+                  <button className="cart-remove" onClick={() => update(items.filter((entry) => entry.product_id !== item.product_id))}>Remove</button>
+                </article>
+              ))}
+            </section>
+            <aside className="cart-summary">
+              <h2>Order summary</h2>
+              <p><span>Items ({items.length})</span><strong>KES {total.toLocaleString("en-KE")}</strong></p>
+              <p><span>Payment</span><strong>M-Pesa / Card</strong></p>
+              <small>Booking durations, live stock, and exact totals are verified at checkout.</small>
+              <Link className="button button-primary" href="/checkout">Go to payment</Link>
+              <p className="cart-signin-note">Your cart stays preserved when signing in.</p>
+            </aside>
+          </div>
+        )}
+      </main>
+      <SiteFooter />
+    </>
   );
 }

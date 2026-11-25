@@ -1,7 +1,14 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import { PENDING_COOKIE, createToken, generateTotpSecret } from "@backend/lib/admin-auth";
-import { createSupabaseAdminClient } from "@backend/lib/supabase/server";
+import type { RowDataPacket } from "mysql2/promise";
+import {
+  PENDING_COOKIE,
+  SESSION_COOKIE,
+  createToken,
+  generateTotpSecret,
+  logAdminActivity,
+} from "@backend/lib/admin-auth";
+import { executeSql, queryOne, toMysqlDatetime } from "@backend/lib/mysql";
 
 export const dynamic = "force-dynamic";
 
@@ -14,51 +21,71 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data: user, error: userError } = await supabase
-      .from("admin_users")
-      .select("id, password_hash, totp_secret, active")
-      .eq("email", email)
-      .maybeSingle();
-    if (userError) throw userError;
+    const user = await queryOne<RowDataPacket>(
+      `SELECT id, name, email, role, password_hash, totp_secret, totp_enabled, active
+       FROM admin_users WHERE email = ? LIMIT 1`,
+      [email],
+    );
+
     if (!user || !user.active || !(await bcrypt.compare(password, user.password_hash))) {
       return NextResponse.json({ error: "Email or password is incorrect." }, { status: 401 });
     }
 
-    const now = new Date().toISOString();
-    const { error: expiredPendingError } = await supabase
-      .from("admin_pending_logins")
-      .delete()
-      .lt("expires_at", now);
-    if (expiredPendingError) throw expiredPendingError;
-    const { error: expiredSessionError } = await supabase
-      .from("admin_sessions")
-      .delete()
-      .lt("expires_at", now);
-    if (expiredSessionError) throw expiredSessionError;
+    await executeSql(`DELETE FROM admin_pending_logins WHERE expires_at < UTC_TIMESTAMP(3)`);
+    await executeSql(`DELETE FROM admin_sessions WHERE expires_at < UTC_TIMESTAMP(3)`);
 
-    const pendingToken = createToken();
-    const setupSecret = user.totp_secret ? null : generateTotpSecret();
-    const { error: pendingError } = await supabase
-      .from("admin_pending_logins")
-      .insert({
-        token: pendingToken,
-        user_id: user.id,
-        setup_secret: setupSecret,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    const isHttps = request.headers.get("x-forwarded-proto") === "https" || request.url.startsWith("https://");
+
+    // If 2FA TOTP is enabled on this admin account, enter 2-step flow
+    if (Boolean(user.totp_enabled)) {
+      const pendingToken = createToken();
+      const setupSecret = user.totp_secret ? null : generateTotpSecret();
+      const pendingExpires = toMysqlDatetime(new Date(Date.now() + 10 * 60 * 1000));
+
+      await executeSql(
+        `INSERT INTO admin_pending_logins (token, user_id, setup_secret, expires_at) VALUES (?, ?, ?, ?)`,
+        [pendingToken, user.id, setupSecret, pendingExpires],
+      );
+
+      const response = NextResponse.json({
+        needsTwoStep: true,
+        requireTotp: true,
+        setup: !user.totp_secret,
+        setupSecret,
       });
-    if (pendingError) throw pendingError;
+      response.cookies.set(PENDING_COOKIE, pendingToken, {
+        httpOnly: true,
+        secure: isHttps,
+        sameSite: "lax",
+        maxAge: 600,
+        path: "/",
+      });
+      return response;
+    }
 
-    const response = NextResponse.json({
-      needsTwoStep: true,
-      setup: !user.totp_secret,
-      setupSecret,
+    // Direct password login when TOTP is not enabled for this account
+    const sessionId = createToken();
+    const sessionExpires = toMysqlDatetime(new Date(Date.now() + 8 * 60 * 60 * 1000));
+    await executeSql(
+      `INSERT INTO admin_sessions (id, user_id, expires_at) VALUES (?, ?, ?)`,
+      [sessionId, user.id, sessionExpires],
+    );
+    await executeSql(`UPDATE admin_users SET last_login_at = UTC_TIMESTAMP(3) WHERE id = ?`, [user.id]);
+    await logAdminActivity({
+      userId: Number(user.id),
+      actorName: user.name,
+      action: "admin.login",
+      entityType: "admin_user",
+      entityId: user.id,
+      details: `${user.name} signed in to Admin Console`,
     });
-    response.cookies.set(PENDING_COOKIE, pendingToken, {
+
+    const response = NextResponse.json({ needsTwoStep: false, requireTotp: false, ok: true });
+    response.cookies.set(SESSION_COOKIE, sessionId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps,
       sameSite: "lax",
-      maxAge: 600,
+      maxAge: 28800,
       path: "/",
     });
     return response;

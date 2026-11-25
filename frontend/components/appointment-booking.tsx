@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import LocationPicker, { type MapPin } from "@/components/location-picker";
 
 export type AppointmentType =
@@ -28,7 +28,29 @@ const sanitationServices = [
   "Garbage Collection",
   "Waste Management Solutions",
   "Commercial & Residential Cleaning",
+  "Skip Bin & Construction Waste Disposal",
 ];
+
+function computeSanitationEstimate(service: string, tankSize: string, trips: number, commercial: boolean) {
+  const safeTrips = Math.max(1, Math.min(20, trips));
+  let base = 8500;
+  let extra = 0;
+  if (service.includes("Septic")) {
+    base = 12000;
+    if (tankSize === "10000L+") extra = 6500;
+    else if (tankSize === "6000L") extra = 3500;
+  } else if (service.includes("Garbage")) {
+    base = 3500;
+  } else if (service.includes("Skip")) {
+    base = 18000;
+  } else if (service.includes("Commercial")) {
+    base = 15000;
+  } else if (service.includes("Waste Management")) {
+    base = 14000;
+  }
+  const commercialAddon = commercial ? 3000 : 0;
+  return base * safeTrips + extra + commercialAddon;
+}
 
 function nairobiToday() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -173,8 +195,12 @@ function AppointmentForm({
   );
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [location, setLocation] = useState("");
   const [locationPin, setLocationPin] = useState<MapPin | null>(null);
+  const [tankSize, setTankSize] = useState<"standard" | "6000L" | "10000L+">("standard");
+  const [trips, setTrips] = useState(1);
+  const [commercial, setCommercial] = useState(false);
   const [notes, setNotes] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
@@ -182,7 +208,13 @@ function AppointmentForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [trackingCode, setTrackingCode] = useState("");
   const [schedulerOpen, setSchedulerOpen] = useState(variant === "dialog");
+
+  const estimatedKes = useMemo(
+    () => serviceType === "sanitation_service" ? computeSanitationEstimate(target, tankSize, trips, commercial) : null,
+    [commercial, serviceType, tankSize, target, trips],
+  );
 
   const title = serviceType === "vehicle_inspection"
     ? "Schedule vehicle inspection"
@@ -199,6 +231,7 @@ function AppointmentForm({
     setBusy(true);
     setError("");
     setNotice("");
+    setTrackingCode("");
     const submissionId = requestId || crypto.randomUUID();
     setRequestId(submissionId);
     try {
@@ -211,17 +244,20 @@ function AppointmentForm({
           target,
           clientName,
           clientPhone,
+          clientEmail,
           preferredDate,
           preferredTime,
           location,
           locationLatitude: locationPin?.latitude ?? null,
           locationLongitude: locationPin?.longitude ?? null,
+          serviceOptions: serviceType === "sanitation_service" ? { tankSize, trips, commercial } : undefined,
           notes,
         }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not save your appointment request.");
       setNotice(result.notice);
+      setTrackingCode(result.trackingCode || "");
       setRequestId(crypto.randomUUID());
       setPreferredDate("");
       setPreferredTime("");
@@ -238,15 +274,49 @@ function AppointmentForm({
     <form className="appointment-form" onSubmit={submitAppointment}>
       <div className="appointment-form-heading">
         <h3>{title}</h3>
-        <p>Pick a preferred date and time. Our team will contact you to confirm.</p>
+        <p>Pick a preferred date and time. Our dispatch &amp; sales team confirms within 30 minutes.</p>
       </div>
       {serviceType === "sanitation_service" ? (
-        <label className="appointment-field appointment-field-wide">
-          Select service
-          <select value={target} onChange={(event) => setTarget(event.target.value)} required>
-            {sanitationServices.map((service) => <option key={service}>{service}</option>)}
-          </select>
-        </label>
+        <>
+          <label className="appointment-field appointment-field-wide">
+            Select sanitation service
+            <select value={target} onChange={(event) => setTarget(event.target.value)} required>
+              {sanitationServices.map((service) => <option key={service}>{service}</option>)}
+            </select>
+          </label>
+          <div className="sanitation-quote-bar">
+            <div className="appointment-fields">
+              <label className="appointment-field">
+                Tank / volume
+                <select value={tankSize} onChange={(e) => setTankSize(e.target.value as typeof tankSize)}>
+                  <option value="standard">Standard (up to 4,000L)</option>
+                  <option value="6000L">Medium (6,000L)</option>
+                  <option value="10000L+">Large / Industrial (10,000L+)</option>
+                </select>
+              </label>
+              <label className="appointment-field">
+                Number of trips / bins
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={trips}
+                  onChange={(e) => setTrips(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                />
+              </label>
+            </div>
+            <label className="sanitation-commercial-check">
+              <input type="checkbox" checked={commercial} onChange={(e) => setCommercial(e.target.checked)} />
+              <span>Commercial / industrial site (NEMA manifest included)</span>
+            </label>
+            {estimatedKes !== null && (
+              <div className="sanitation-estimate-box">
+                <span>Instant estimate</span>
+                <strong>KES {estimatedKes.toLocaleString("en-KE")}</strong>
+              </div>
+            )}
+          </div>
+        </>
       ) : (
         <p className="appointment-target">{target}</p>
       )}
@@ -275,6 +345,17 @@ function AppointmentForm({
           />
         </label>
         <label className="appointment-field">
+          Email (optional)
+          <input
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            maxLength={180}
+            value={clientEmail}
+            onChange={(event) => setClientEmail(event.target.value)}
+          />
+        </label>
+        <label className="appointment-field appointment-field-wide">
           {serviceType === "sanitation_service" ? "Estate, street or landmark" : "Location"}
           <input
             autoComplete="street-address"
@@ -339,7 +420,12 @@ function AppointmentForm({
       </label>
 
       {error && <p className="appointment-error" role="alert">{error}</p>}
-      {notice && <p className="appointment-success" role="status">{notice}</p>}
+      {notice && (
+        <div className="appointment-success" role="status">
+          <p>{notice}</p>
+          {trackingCode && <p className="tracking-code-pill">Tracking Reference: <strong>{trackingCode}</strong></p>}
+        </div>
+      )}
       <div className="appointment-submit-row">
         <button
           type="submit"

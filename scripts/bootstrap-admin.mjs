@@ -1,60 +1,42 @@
 import bcrypt from "bcryptjs";
-import { createClient } from "@supabase/supabase-js";
+import mysql from "mysql2/promise";
 
 async function bootstrapAdmin() {
-  const isVercelBuild = process.argv.includes("--vercel-build");
-  if (isVercelBuild && (process.env.VERCEL !== "1" || process.env.SUPABASE_BOOTSTRAP_ADMIN_ON_BUILD !== "true")) {
-    console.log("Admin bootstrap skipped; it is not enabled for this Vercel build.");
-    return;
-  }
+  const host = process.env.MYSQL_HOST;
+  const port = Number(process.env.MYSQL_PORT || "3306");
+  const user = process.env.MYSQL_USER;
+  const password = process.env.MYSQL_PASSWORD;
+  const database = process.env.MYSQL_DATABASE;
 
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const name = process.env.SUPABASE_BOOTSTRAP_ADMIN_NAME?.trim() || "Super Admin";
-  const email = process.env.SUPABASE_BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
-  const password = process.env.SUPABASE_BOOTSTRAP_ADMIN_PASSWORD;
+  const name = process.env.ADMIN_BOOTSTRAP_NAME?.trim() || "Super Admin";
+  const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
 
-  if (!url || !key || !email || !password) {
+  if (!host || !user || password === undefined || !database || !email || !adminPassword) {
     throw new Error(
-      "Set Supabase server credentials and SUPABASE_BOOTSTRAP_ADMIN_EMAIL/PASSWORD before running this command.",
+      "Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, ADMIN_BOOTSTRAP_EMAIL, and ADMIN_BOOTSTRAP_PASSWORD.",
     );
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error("SUPABASE_BOOTSTRAP_ADMIN_EMAIL must be a valid email address.");
+    throw new Error("ADMIN_BOOTSTRAP_EMAIL must be a valid email address.");
   }
-  if (password.length < 12) {
-    throw new Error("SUPABASE_BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters.");
-  }
-
-  const supabase = createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data: existingUsers, error: existingUsersError } = await supabase
-    .from("admin_users")
-    .select("id")
-    .limit(1);
-  if (existingUsersError) throw existingUsersError;
-  if (existingUsers.length > 0) {
-    console.log("Admin bootstrap skipped; Supabase already has an admin account.");
-    return;
+  if (adminPassword.length < 12) {
+    throw new Error("ADMIN_BOOTSTRAP_PASSWORD must be at least 12 characters.");
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  const { error: insertError } = await supabase.from("admin_users").insert({
-    name,
-    email,
-    password_hash: passwordHash,
-    role: "super_admin",
-    active: true,
-  });
-  if (insertError?.code === "23505") {
-    console.log("Admin bootstrap skipped; an admin account was created during this build.");
-    return;
+  const connection = await mysql.createConnection({ host, port, user, password, database });
+  try {
+    const hash = await bcrypt.hash(adminPassword, 12);
+    await connection.execute(
+      `INSERT INTO admin_users (name, email, password_hash, role, totp_enabled, active)
+       VALUES (?, ?, ?, 'super_admin', 0, 1)
+       ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = 'super_admin', active = 1`,
+      [name, email, hash],
+    );
+    console.log(`Super-admin account ready for ${email}.`);
+  } finally {
+    await connection.end();
   }
-  if (insertError) throw insertError;
-
-  console.log(`Created the initial Supabase super-admin account for ${email}.`);
-  console.log("Remove SUPABASE_BOOTSTRAP_ADMIN_ON_BUILD and the bootstrap credentials after deployment.");
 }
 
 bootstrapAdmin().catch((error) => {

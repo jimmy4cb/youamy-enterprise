@@ -1,25 +1,30 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { AdminTableSkeleton } from "@/components/skeletons";
 
 type InquiryListing = {
-  id: number;
+  id: string;
   title: string;
   division: "Vehicles" | "Real Estate";
   detail: string;
 };
 
+type InquiryStatus = "unread" | "in_progress" | "resolved" | "archived";
+
 type InquiryRecord = {
   id: number;
+  tracking_code: string;
+  source: string;
   listing_title: string;
   division: string;
   inquiry_type: string;
-  client_name: string;
-  client_phone: string;
-  questions: string;
-  status: string;
-  notification_status: "pending" | "sent" | "failed" | "not_configured";
-  notification_error: string | null;
+  full_name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+  status: InquiryStatus;
   created_at: string;
 };
 
@@ -28,11 +33,10 @@ const inquiryTypes = {
   "Real Estate": ["Book Site Viewing", "Purchase / Payment Plan Inquiry", "Rental Terms Inquiry"],
 } as const;
 
-export default function AdminInquiries() {
+export default function AdminInquiries({ onChanged }: { onChanged?: () => void }) {
   const [listings, setListings] = useState<InquiryListing[]>([]);
   const [inquiries, setInquiries] = useState<InquiryRecord[]>([]);
   const [selectedListing, setSelectedListing] = useState<InquiryListing | null>(null);
-  const [requestId, setRequestId] = useState("");
   const [inquiryType, setInquiryType] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -70,19 +74,9 @@ export default function AdminInquiries() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    if (!selectedListing) return;
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape" && !busy) setSelectedListing(null);
-    }
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [selectedListing, busy]);
-
   function openInquiry(listing: InquiryListing) {
     setSelectedListing(listing);
-    setRequestId(crypto.randomUUID());
-    setInquiryType(inquiryTypes[listing.division][0]);
+    setInquiryType(inquiryTypes[listing.division]?.[0] || "General Inquiry");
     setClientName("");
     setClientPhone("");
     setQuestions("");
@@ -100,7 +94,6 @@ export default function AdminInquiries() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          requestId,
           listingId: selectedListing.id,
           inquiryType,
           clientName,
@@ -112,11 +105,8 @@ export default function AdminInquiries() {
       if (!response.ok) throw new Error(result.error || "Could not save this inquiry.");
       setSelectedListing(null);
       setNotice(result.notice);
-      try {
-        await loadInquiries();
-      } catch {
-        setError("Inquiry was saved, but the inquiry list could not be refreshed.");
-      }
+      await loadInquiries();
+      onChanged?.();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save this inquiry.");
     } finally {
@@ -124,15 +114,31 @@ export default function AdminInquiries() {
     }
   }
 
+  async function updateInquiryStatus(id: number, status: InquiryStatus) {
+    setError("");
+    const response = await fetch("/api/admin/inquiries", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    if (!response.ok) {
+      const res = await response.json();
+      setError(res.error || "Could not update inquiry.");
+      return;
+    }
+    setInquiries((cur) => cur.map((item) => (item.id === id ? { ...item, status } : item)));
+    onChanged?.();
+  }
+
   return (
     <>
       <section className="admin-listings admin-inquiries" id="enquiries">
         <div className="admin-listings-head">
-          <div><p>Customer follow-up</p><h2>Enquiries</h2></div>
-          <span className="admin-inquiry-count">{inquiries.length} recent</span>
+          <div><p>Customer follow-up</p><h2>Enquiries &amp; website messages</h2></div>
+          <span className="admin-inquiry-count">{inquiries.length} records</span>
         </div>
-        {notice && <p className="admin-inquiry-notice" role="status">{notice}</p>}
-        {error && <p className="journey-error" role="alert">{error}</p>}
+        {notice && <p className="admin-inquiry-notice" style={{ marginTop: 14 }} role="status">{notice}</p>}
+        {error && <p className="journey-error application-error" role="alert">{error}</p>}
 
         <div className="admin-inquiry-listings">
           {listings.map((listing) => (
@@ -143,35 +149,51 @@ export default function AdminInquiries() {
                 <p>{listing.detail}</p>
               </div>
               <button type="button" className="admin-inquiry-open" onClick={() => openInquiry(listing)}>
-                Create inquiry
+                Log inquiry
               </button>
             </article>
           ))}
-          {!loading && listings.length === 0 && (
-            <div className="admin-empty">Publish a vehicle or property listing to record a customer inquiry.</div>
-          )}
         </div>
 
         <div className="admin-table-wrap">
           <table className="admin-table admin-inquiry-table">
             <thead>
-              <tr><th>Listing</th><th>Client</th><th>Phone</th><th>Inquiry</th><th>Email</th><th>Received</th></tr>
+              <tr><th>Subject / Listing</th><th>Client</th><th>Contact</th><th>Message</th><th>Status</th></tr>
             </thead>
             <tbody>
               {inquiries.map((inquiry) => (
                 <tr key={inquiry.id}>
-                  <td><strong>{inquiry.listing_title}</strong><span>{inquiry.division}</span></td>
-                  <td>{inquiry.client_name || "Not provided"}</td>
-                  <td><a href={`tel:${inquiry.client_phone}`}>{inquiry.client_phone}</a></td>
-                  <td>{inquiry.inquiry_type}</td>
-                  <td title={inquiry.notification_error || undefined}>
-                    {inquiry.notification_status === "sent" ? "Sent" : "Not sent"}
+                  <td>
+                    <strong>{inquiry.listing_title || inquiry.subject || inquiry.division}</strong>
+                    <span>{inquiry.tracking_code} · {inquiry.inquiry_type}</span>
                   </td>
-                  <td>{new Date(`${inquiry.created_at.replace(" ", "T")}Z`).toLocaleString()}</td>
+                  <td>
+                    <strong>{inquiry.full_name || "Not provided"}</strong>
+                    <span>{inquiry.source === "website_contact" ? "Website form" : "Staff logged"}</span>
+                  </td>
+                  <td>
+                    <a href={`tel:${inquiry.phone}`}>{inquiry.phone}</a>
+                    {inquiry.email && <span>{inquiry.email}</span>}
+                  </td>
+                  <td style={{ maxWidth: 260, whiteSpace: "normal", lineHeight: 1.4 }}>{inquiry.message}</td>
+                  <td>
+                    <select
+                      className="admin-appointment-status"
+                      aria-label={`Update status for ${inquiry.tracking_code}`}
+                      value={inquiry.status}
+                      onChange={(e) => void updateInquiryStatus(inquiry.id, e.target.value as InquiryStatus)}
+                    >
+                      <option value="unread">Unread</option>
+                      <option value="in_progress">In progress</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {loading && <AdminTableSkeleton rows={4} cols={5} />}
           {!loading && inquiries.length === 0 && (
             <div className="admin-empty">No enquiries have been recorded yet.</div>
           )}
@@ -195,9 +217,7 @@ export default function AdminInquiries() {
             <div className="admin-modal-head admin-inquiry-head">
               <div>
                 <p>{selectedListing.division}</p>
-                <h2 id="admin-inquiry-title">
-                  {selectedListing.division === "Vehicles" ? "Inquire / Book Inspection" : "Property Inquiry"}: {selectedListing.title}
-                </h2>
+                <h2 id="admin-inquiry-title">Log Inquiry: {selectedListing.title}</h2>
                 <span>{selectedListing.detail}</span>
               </div>
               <button type="button" disabled={busy} onClick={() => setSelectedListing(null)} aria-label="Close inquiry">×</button>
@@ -207,19 +227,18 @@ export default function AdminInquiries() {
               <label>
                 Inquiry Type
                 <select value={inquiryType} onChange={(event) => setInquiryType(event.target.value)} required>
-                  {inquiryTypes[selectedListing.division].map((type) => <option key={type}>{type}</option>)}
+                  {(inquiryTypes[selectedListing.division] || ["General Inquiry"]).map((type) => (
+                    <option key={type}>{type}</option>
+                  ))}
                 </select>
               </label>
-              {selectedListing.division === "Vehicles" && (
-                <label>
-                  Your Name
-                  <input autoFocus value={clientName} onChange={(event) => setClientName(event.target.value)} maxLength={120} required />
-                </label>
-              )}
+              <label>
+                Client Name
+                <input autoFocus value={clientName} onChange={(event) => setClientName(event.target.value)} maxLength={120} required />
+              </label>
               <label>
                 Phone / WhatsApp Number
                 <input
-                  autoFocus={selectedListing.division === "Real Estate"}
                   type="tel"
                   autoComplete="tel"
                   placeholder="+254 7xx xxx xxx"

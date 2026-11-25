@@ -1,14 +1,16 @@
 export type AppointmentEmail = {
   id: number;
+  tracking_code?: string;
   service_type: string;
   target: string;
   client_name: string;
   client_phone: string;
-  preferred_date: string;
+  preferred_date: string | Date;
   preferred_time: string;
   location: string;
+  estimated_kes?: number | null;
   notes: string;
-  created_at: string;
+  created_at: string | Date;
 };
 
 export type AppointmentEmailResult = {
@@ -25,7 +27,7 @@ export async function emailAppointmentToTeam(
   if (!apiKey || !from || !to) {
     return {
       status: "not_configured",
-      error: "Set RESEND_API_KEY, RESEND_FROM_EMAIL and INQUIRIES_EMAIL to send appointment emails.",
+      error: "Email delivery optional; appointment saved in MySQL.",
     };
   }
 
@@ -38,18 +40,19 @@ export async function emailAppointmentToTeam(
     body: JSON.stringify({
       from,
       to: [to],
-      subject: `New appointment request: ${appointment.target.replace(/[\r\n]/g, " ")}`,
+      subject: `New appointment request ${appointment.tracking_code || ""}: ${appointment.target.replace(/[\r\n]/g, " ")}`,
       text: [
+        `Tracking code: ${appointment.tracking_code || appointment.id}`,
         `Service: ${appointment.service_type}`,
         `For: ${appointment.target}`,
         `Client: ${appointment.client_name}`,
         `Phone: ${appointment.client_phone}`,
-        `Preferred date: ${appointment.preferred_date}`,
+        `Preferred date: ${String(appointment.preferred_date).slice(0, 10)}`,
         `Preferred time: ${appointment.preferred_time}`,
         `Location: ${appointment.location || "Not provided"}`,
+        ...(appointment.estimated_kes ? [`Estimated quote: KES ${appointment.estimated_kes.toLocaleString("en-KE")}`] : []),
         `Notes: ${appointment.notes || "None"}`,
-        `Received: ${appointment.created_at}`,
-        `Appointment ID: ${appointment.id}`,
+        `Received: ${String(appointment.created_at)}`,
       ].join("\n"),
     }),
   });
