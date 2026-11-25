@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getCurrentCustomer } from "@backend/lib/customer-auth";
-import { parseJsonValue, queryRows, withTransaction } from "@backend/lib/mysql";
+import { parseJsonValue, queryRows, withTransaction } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 

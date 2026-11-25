@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentCustomer, normalizePhone } from "@backend/lib/customer-auth";
-import { executeSql } from "@backend/lib/mysql";
+import { executeSql } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 

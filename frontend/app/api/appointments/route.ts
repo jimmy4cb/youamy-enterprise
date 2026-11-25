@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { parseJsonValue, withTransaction } from "@backend/lib/mysql";
+import type { ResultSetHeader, RowDataPacket } from "@backend/lib/postgres";
+import { parseJsonValue, withTransaction } from "@backend/lib/postgres";
 import { calculateSanitationQuote, generateTrackingCode } from "@backend/lib/business-logic";
 import { emailAppointmentToTeam, type AppointmentEmailResult } from "@backend/lib/appointment-notifications";
 

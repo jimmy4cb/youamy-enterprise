@@ -1,41 +1,44 @@
 import bcrypt from "bcryptjs";
-import mysql from "mysql2/promise";
+import pg from "pg";
 
 async function bootstrapAdmin() {
-  const host = process.env.MYSQL_HOST;
-  const port = Number(process.env.MYSQL_PORT || "3306");
-  const user = process.env.MYSQL_USER;
-  const password = process.env.MYSQL_PASSWORD;
-  const database = process.env.MYSQL_DATABASE;
-
+  const connectionString = process.env.SUPABASE_DB_URL;
   const name = process.env.ADMIN_BOOTSTRAP_NAME?.trim() || "Super Admin";
   const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
-  const adminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+  const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
 
-  if (!host || !user || password === undefined || !database || !email || !adminPassword) {
-    throw new Error(
-      "Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, ADMIN_BOOTSTRAP_EMAIL, and ADMIN_BOOTSTRAP_PASSWORD.",
-    );
+  if (!connectionString || !email || !password) {
+    throw new Error("Set SUPABASE_DB_URL, ADMIN_BOOTSTRAP_EMAIL, and ADMIN_BOOTSTRAP_PASSWORD.");
+  }
+  if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
+    throw new Error("SUPABASE_DB_URL must be a PostgreSQL connection string.");
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("ADMIN_BOOTSTRAP_EMAIL must be a valid email address.");
   }
-  if (adminPassword.length < 12) {
+  if (password.length < 12) {
     throw new Error("ADMIN_BOOTSTRAP_PASSWORD must be at least 12 characters.");
   }
 
-  const connection = await mysql.createConnection({ host, port, user, password, database });
+  const pool = new pg.Pool({
+    connectionString,
+    max: 1,
+    connectionTimeoutMillis: 10_000,
+  });
   try {
-    const hash = await bcrypt.hash(adminPassword, 12);
-    await connection.execute(
-      `INSERT INTO admin_users (name, email, password_hash, role, totp_enabled, active)
-       VALUES (?, ?, ?, 'super_admin', 0, 1)
-       ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = 'super_admin', active = 1`,
+    const hash = await bcrypt.hash(password, 12);
+    const { rows } = await pool.query(
+      `INSERT INTO yel.admin_users (name, email, password_hash, role, active)
+       VALUES ($1, $2, $3, 'super_admin', 1)
+       ON CONFLICT (email) DO UPDATE
+       SET name = EXCLUDED.name, password_hash = EXCLUDED.password_hash, role = 'super_admin', active = 1
+       RETURNING id`,
       [name, email, hash],
     );
+    if (!rows[0]) throw new Error("Supabase did not return the bootstrapped admin account.");
     console.log(`Super-admin account ready for ${email}.`);
   } finally {
-    await connection.end();
+    await pool.end();
   }
 }
 

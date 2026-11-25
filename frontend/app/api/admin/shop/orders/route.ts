@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser, hasPermission, logAdminActivity } from "@backend/lib/admin-auth";
 import { confirmOrderPayment, updateClientOrderStatus } from "@backend/lib/business-logic";
 import { notifyClientOrderUpdate } from "@backend/lib/order-notifications";
-import { parseJsonValue, queryOne, queryRows, withTransaction } from "@backend/lib/mysql";
+import { parseJsonValue, queryOne, queryRows, withTransaction } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 

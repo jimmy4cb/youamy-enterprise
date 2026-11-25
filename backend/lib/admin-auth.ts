@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
-import type { RowDataPacket } from "mysql2/promise";
-import { executeSql, queryOne, queryRows } from "./mysql";
+import type { RowDataPacket } from "@backend/lib/postgres";
+import { executeSql, queryOne, queryRows } from "./postgres";
 
 export const SESSION_COOKIE = "yel_admin_session";
 export const PENDING_COOKIE = "yel_admin_pending";

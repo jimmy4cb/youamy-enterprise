@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser, hasPermission } from "@backend/lib/admin-auth";
 import { updateJobApplicationStatusWithSlotSync } from "@backend/lib/business-logic";
-import { queryOne, queryRows } from "@backend/lib/mysql";
+import { queryOne, queryRows } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 
@@ -46,16 +46,18 @@ export async function GET(request: Request) {
       ),
       queryOne<RowDataPacket>(`SELECT COUNT(*) AS cnt FROM job_applications`),
       queryOne<RowDataPacket>(
-        `SELECT COUNT(*) AS cnt FROM job_applications WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 30 DAY)`,
+        `SELECT COUNT(*) AS cnt
+         FROM job_applications
+         WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'`,
       ),
       queryRows<RowDataPacket>(
         `SELECT status, COUNT(*) AS cnt FROM job_applications GROUP BY status`,
       ),
       queryRows<RowDataPacket>(
-        `SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS count
+        `SELECT TO_CHAR(created_at, 'YYYY-MM') AS month, COUNT(*) AS count
          FROM job_applications
-         WHERE created_at >= DATE_FORMAT(DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 5 MONTH), '%Y-%m-01')
-         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+         WHERE created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP - INTERVAL '5 months')
+         GROUP BY TO_CHAR(created_at, 'YYYY-MM')
          ORDER BY month ASC`,
       ),
       queryRows<RowDataPacket>(

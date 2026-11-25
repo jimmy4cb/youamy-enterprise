@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import type { RowDataPacket, ResultSetHeader } from "mysql2/promise";
-import { withTransaction } from "@backend/lib/mysql";
+import type { RowDataPacket, ResultSetHeader } from "@backend/lib/postgres";
+import { withTransaction } from "@backend/lib/postgres";
 import { generateTrackingCode } from "@backend/lib/business-logic";
 
 const allowedTypes = new Set([

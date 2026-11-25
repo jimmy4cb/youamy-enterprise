@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import {
   PENDING_COOKIE,
   SESSION_COOKIE,
@@ -8,7 +8,7 @@ import {
   generateTotpSecret,
   logAdminActivity,
 } from "@backend/lib/admin-auth";
-import { executeSql, queryOne, toMysqlDatetime } from "@backend/lib/mysql";
+import { executeSql, queryOne, toPostgresDatetime } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (Boolean(user.totp_enabled)) {
       const pendingToken = createToken();
       const setupSecret = user.totp_secret ? null : generateTotpSecret();
-      const pendingExpires = toMysqlDatetime(new Date(Date.now() + 10 * 60 * 1000));
+      const pendingExpires = toPostgresDatetime(new Date(Date.now() + 10 * 60 * 1000));
 
       await executeSql(
         `INSERT INTO admin_pending_logins (token, user_id, setup_secret, expires_at) VALUES (?, ?, ?, ?)`,
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     // Direct password login when TOTP is not enabled for this account
     const sessionId = createToken();
-    const sessionExpires = toMysqlDatetime(new Date(Date.now() + 8 * 60 * 60 * 1000));
+    const sessionExpires = toPostgresDatetime(new Date(Date.now() + 8 * 60 * 60 * 1000));
     await executeSql(
       `INSERT INTO admin_sessions (id, user_id, expires_at) VALUES (?, ?, ?)`,
       [sessionId, user.id, sessionExpires],

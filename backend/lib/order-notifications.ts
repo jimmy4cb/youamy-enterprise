@@ -1,5 +1,5 @@
-import type { RowDataPacket } from "mysql2/promise";
-import { queryOne } from "./mysql";
+import type { RowDataPacket } from "@backend/lib/postgres";
+import { queryOne } from "./postgres";
 
 export async function notifyClientOrderUpdate(orderId: string, message: string, subject: string) {
   const order = await queryOne<RowDataPacket>(

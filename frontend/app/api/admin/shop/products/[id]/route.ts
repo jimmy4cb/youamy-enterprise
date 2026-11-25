@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, hasPermission, logAdminActivity } from "@backend/lib/admin-auth";
-import { executeSql } from "@backend/lib/mysql";
+import { executeSql } from "@backend/lib/postgres";
 
 function normalizeImageUrls(urls: unknown): string[] {
   if (!Array.isArray(urls)) return [];

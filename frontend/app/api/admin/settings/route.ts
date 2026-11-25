@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser, listRecentActivity, logAdminActivity } from "@backend/lib/admin-auth";
-import { executeSql, parseJsonValue, queryRows } from "@backend/lib/mysql";
+import { executeSql, parseJsonValue, queryRows } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,8 @@ export async function PATCH(request: Request) {
   await executeSql(
     `INSERT INTO site_settings (setting_key, setting_value, updated_by)
      VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by)`,
+     ON CONFLICT (setting_key) DO UPDATE
+     SET setting_value = EXCLUDED.setting_value, updated_by = EXCLUDED.updated_by`,
     [body.settingKey, JSON.stringify(body.settingValue), user.id],
   );
 

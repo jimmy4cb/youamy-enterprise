@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { executeSql } from "@backend/lib/mysql";
+import { executeSql } from "@backend/lib/postgres";
 import { CUSTOMER_SESSION_COOKIE } from "@backend/lib/customer-auth";
 
 export async function POST() {

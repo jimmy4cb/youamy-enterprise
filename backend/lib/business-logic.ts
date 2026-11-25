@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import type { PoolConnection, RowDataPacket } from "mysql2/promise";
-import { executeSql, parseJsonValue, queryOne, queryRows, toMysqlDatetime, withTransaction } from "./mysql";
+import type { PoolConnection, RowDataPacket } from "@backend/lib/postgres";
+import { executeSql, parseJsonValue, queryOne, queryRows, toPostgresDatetime, withTransaction } from "./postgres";
 import { logAdminActivity } from "./admin-auth";
 
 export function generateTrackingCode(prefix: "APP" | "APT" | "INQ" | "ORD"): string {

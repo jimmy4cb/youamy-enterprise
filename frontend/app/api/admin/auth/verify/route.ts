@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import {
   PENDING_COOKIE,
   SESSION_COOKIE,
@@ -8,7 +8,7 @@ import {
   logAdminActivity,
   verifyTotp,
 } from "@backend/lib/admin-auth";
-import { executeSql, queryOne, toMysqlDatetime } from "@backend/lib/mysql";
+import { executeSql, queryOne, toPostgresDatetime } from "@backend/lib/postgres";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { code?: string } | null;
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     const sessionId = createToken();
     await executeSql(
       `INSERT INTO admin_sessions (id, user_id, expires_at) VALUES (?, ?, ?)`,
-      [sessionId, user.id, toMysqlDatetime(new Date(Date.now() + 8 * 60 * 60 * 1000))],
+      [sessionId, user.id, toPostgresDatetime(new Date(Date.now() + 8 * 60 * 60 * 1000))],
     );
     await executeSql(`UPDATE admin_users SET last_login_at = UTC_TIMESTAMP(3) WHERE id = ?`, [user.id]);
     await logAdminActivity({

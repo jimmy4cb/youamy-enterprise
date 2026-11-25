@@ -1,8 +1,8 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser, logAdminActivity, type AdminRole } from "@backend/lib/admin-auth";
-import { executeSql, queryOne, queryRows } from "@backend/lib/mysql";
+import { executeSql, queryOne, queryRows } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 

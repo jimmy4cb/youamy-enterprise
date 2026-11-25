@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser, hasPermission, logAdminActivity } from "@backend/lib/admin-auth";
 import { generateTrackingCode } from "@backend/lib/business-logic";
 import { emailInquiryToTeam } from "@backend/lib/inquiry-notifications";
-import { executeSql, queryOne, queryRows } from "@backend/lib/mysql";
+import { executeSql, queryOne, queryRows } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 

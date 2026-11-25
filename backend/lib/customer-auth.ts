@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
-import type { RowDataPacket } from "mysql2/promise";
-import { executeSql, queryOne, toMysqlDatetime, withTransaction } from "./mysql";
+import type { RowDataPacket } from "@backend/lib/postgres";
+import { executeSql, queryOne, toPostgresDatetime, withTransaction } from "./postgres";
 
 export const CUSTOMER_SESSION_COOKIE = "yel_client_session";
 
@@ -60,7 +60,7 @@ export async function getCurrentCustomer(): Promise<CustomerUser | null> {
 
 export async function createCustomerSession(customerId: string): Promise<string> {
   const sessionId = crypto.randomBytes(32).toString("hex");
-  const expiresAt = toMysqlDatetime(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000));
+  const expiresAt = toPostgresDatetime(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000));
   await executeSql(`DELETE FROM customer_sessions WHERE expires_at <= UTC_TIMESTAMP(3)`);
   await executeSql(
     `INSERT INTO customer_sessions (id, customer_id, expires_at) VALUES (?, ?, ?)`,

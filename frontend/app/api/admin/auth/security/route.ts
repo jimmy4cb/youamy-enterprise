@@ -6,7 +6,7 @@ import {
   logAdminActivity,
   verifyTotp,
 } from "@backend/lib/admin-auth";
-import { executeSql } from "@backend/lib/mysql";
+import { executeSql } from "@backend/lib/postgres";
 
 export async function GET() {
   const user = await getSessionUser();

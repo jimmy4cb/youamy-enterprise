@@ -4,11 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "db:init": "node --env-file=../frontend/.env.local scripts/init-mysql.mjs",
-    "admin:bootstrap": "node --env-file=../frontend/.env.local scripts/bootstrap-admin.mjs"
+    "admin:bootstrap": "node --env-file=../frontend/.env ../scripts/bootstrap-admin.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "mysql2": "^3.14.1"
+    "pg": "8.23.1"
   }
 }

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getCurrentCustomer } from "@backend/lib/customer-auth";
 import { confirmOrderPayment, failOrderPayment } from "@backend/lib/business-logic";
 import { notifyClientOrderUpdate } from "@backend/lib/order-notifications";
-import { queryOne } from "@backend/lib/mysql";
+import { queryOne } from "@backend/lib/postgres";
 
 export async function POST(request: Request) {
   const sandboxAllowed = process.env.PAYMENT_SANDBOX_MODE === "true" || !process.env.MPESA_CONSUMER_KEY;

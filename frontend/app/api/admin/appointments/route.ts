@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser, hasPermission, logAdminActivity } from "@backend/lib/admin-auth";
-import { executeSql, parseJsonValue, queryOne, queryRows } from "@backend/lib/mysql";
+import { executeSql, parseJsonValue, queryOne, queryRows } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 

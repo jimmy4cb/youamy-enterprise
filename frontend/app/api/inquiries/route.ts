@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { executeSql, queryOne } from "@backend/lib/mysql";
+import type { ResultSetHeader, RowDataPacket } from "@backend/lib/postgres";
+import { executeSql, queryOne } from "@backend/lib/postgres";
 import { generateTrackingCode } from "@backend/lib/business-logic";
 import { emailInquiryToTeam } from "@backend/lib/inquiry-notifications";
 

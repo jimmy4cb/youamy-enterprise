@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "@backend/lib/postgres";
 import { getSessionUser } from "@backend/lib/admin-auth";
 import {
   calculateSanitationQuote,
   getAdminOverviewMetrics,
 } from "@backend/lib/business-logic";
-import { parseJsonValue, queryOne, queryRows } from "@backend/lib/mysql";
+import { parseJsonValue, queryOne, queryRows } from "@backend/lib/postgres";
 
 export const dynamic = "force-dynamic";
 
