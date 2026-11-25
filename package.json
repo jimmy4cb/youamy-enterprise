@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev frontend",
+    "prebuild": "node scripts/bootstrap-admin.mjs --vercel-build",
     "build": "next build frontend",
     "start": "next start frontend",
     "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
