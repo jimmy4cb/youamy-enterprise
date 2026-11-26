@@ -132,7 +132,7 @@ export default function SignInForm() {
                 />
               </label>
               <label>
-                Phone number (M-Pesa / WhatsApp)
+                Phone number (WhatsApp)
                 <input
                   type="tel"
                   value={phone}
