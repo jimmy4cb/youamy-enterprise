@@ -1526,8 +1526,8 @@ button {
 }
 
 .whatsapp-float svg {
-  width: 23px;
-  height: 23px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
   fill: white;
 }
@@ -3819,7 +3819,8 @@ button {
   }
 
   .admin-tabs {
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 
   .admin-search {
@@ -5786,14 +5787,14 @@ button {
   }
 
   .recruitment-country-tabs {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    margin-right: -20px;
-    padding: 0 20px 4px 0;
+    flex-wrap: wrap;
+    margin-right: 0;
+    padding: 0;
   }
 
   .recruitment-country-tabs button {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    padding-inline: 13px;
   }
 
   .recruitment-filters {
@@ -6770,7 +6771,7 @@ textarea:focus-visible {
 .chatbot-suggestions {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
+  flex-wrap: wrap;
   border-top: 1px solid #e7edf5;
   background: white;
   padding: 8px 12px;
@@ -7208,6 +7209,17 @@ textarea:focus-visible {
   select,
   textarea {
     font-size: 16px;
+  }
+
+  .chatbot-suggestions {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .chatbot-chip {
+    flex: 0 1 auto;
+    white-space: normal;
+    text-align: left;
   }
 
   .admin-quickjump-btn span,
