@@ -1464,7 +1464,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 9px;
+  gap: 5px;
 }
 
 .footer-column h3 {
@@ -1483,7 +1483,7 @@ button {
 }
 
 .footer-column a {
-  min-height: 44px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
 }
