@@ -9,7 +9,7 @@ Full-stack multi-division platform for **Youamy Enterprises Limited** (Gulf Recr
   - `backend/database/migrations/202611250001_platform_postgres.sql`: private Postgres schema, indexes, RLS lockdown, and starter catalog.
   - `backend/lib/postgres.ts`: Supabase Postgres pool connection and server-side bootstrap for the initial admin.
   - `backend/lib/business-logic.ts`: Transactional checkout (`checkout_key` idempotency, atomic stock locking, car/short-stay overlap conflict prevention, dynamic pricing, order status state machine with stock restoration, job placement slot synchronization, sanitation quote estimator, and admin analytics).
-  - `backend/lib/admin-auth.ts` & `backend/lib/customer-auth.ts`: Scrypt/bcrypt password hashing, HTTP-only signed sessions (`yel_admin_session`, `yel_client_session`), RBAC role enforcement, and optional TOTP 2FA.
+  - `backend/lib/admin-auth.ts` & `backend/lib/customer-auth.ts`: bcrypt password hashing, database-backed HTTP-only sessions (`yel_admin_session`, `yel_client_session`), RBAC role enforcement, and optional TOTP 2FA.
 
 ## Supabase PostgreSQL Setup
 
@@ -25,7 +25,7 @@ Full-stack multi-division platform for **Youamy Enterprises Limited** (Gulf Recr
 
    The connection string contains your database password. Keep it server-only and never use a `NEXT_PUBLIC_` prefix.
 
-2. Open the project's Supabase SQL Editor and run [`202611250001_platform_postgres.sql`](backend/database/migrations/202611250001_platform_postgres.sql). This creates the private `yel` schema and seeds the catalog; it leaves existing `public` tables untouched. It does not copy existing MySQL or Supabase data, so export/import any records you need before switching production traffic.
+2. Apply [`20261126144900_new-migration.sql`](supabase/migrations/20261126144900_new-migration.sql) to a fresh Supabase project using the Supabase SQL Editor. Alternatively, run the equivalent [`202611250001_platform_postgres.sql`](backend/database/migrations/202611250001_platform_postgres.sql); apply only one baseline. This creates the private `yel` schema and seeds the catalog while leaving existing `public` tables untouched. It does not copy existing MySQL or Supabase data, so export/import any records you need before switching production traffic.
 
 3. Configure the same `SUPABASE_DB_URL` in Vercel Production. Set `ADMIN_BOOTSTRAP_EMAIL` and a fresh, unique `ADMIN_BOOTSTRAP_PASSWORD` of at least 12 characters. The first server request creates the initial `super_admin` if `yel.admin_users` is empty.
 

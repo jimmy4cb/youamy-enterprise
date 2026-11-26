@@ -344,9 +344,10 @@ export async function confirmOrderPayment(params: {
     for (const item of orderItems) {
       if (!item.product_id) continue;
       await conn.execute(
-        `DELETE ci FROM cart_items ci
-         JOIN carts c ON c.id = ci.cart_id
-         WHERE c.customer_id = ? AND ci.product_id = ?`,
+        `DELETE FROM cart_items ci
+        USING yel.carts c
+        WHERE c.id = ci.cart_id
+          AND c.customer_id = ? AND ci.product_id = ?`,
         [order.customer_id, item.product_id],
       );
 
@@ -595,7 +596,7 @@ export async function getAdminOverviewMetrics() {
     queryOne<RowDataPacket>(
       `SELECT COUNT(*) AS total_jobs,
               SUM(CASE WHEN status = 'Published' THEN 1 ELSE 0 END) AS active_jobs,
-              COALESCE(SUM(CASE WHEN status = 'Published' THEN GREATEST(0, CAST(openings_total AS SIGNED) - CAST(openings_filled AS SIGNED)) ELSE 0 END), 0) AS remaining_slots
+              COALESCE(SUM(CASE WHEN status = 'Published' THEN GREATEST(0, openings_total - openings_filled) ELSE 0 END), 0) AS remaining_slots
        FROM jobs`,
     ),
     queryOne<RowDataPacket>(

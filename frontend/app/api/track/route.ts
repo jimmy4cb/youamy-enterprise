@@ -15,6 +15,19 @@ type NormalizedResult = {
   timeline?: Array<{ status: string; note: string; createdAt: string }>;
 };
 
+function canonicalPhoneDigits(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("254")) return digits.slice(3);
+  if (digits.length === 10 && digits.startsWith("0")) return digits.slice(1);
+  return digits;
+}
+
+function phoneContactMatches(contact: string, phone: string): boolean {
+  const contactDigits = canonicalPhoneDigits(contact);
+  const phoneDigits = canonicalPhoneDigits(phone);
+  return contactDigits.length >= 9 && contactDigits === phoneDigits;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = (url.searchParams.get("code") || "").trim().toUpperCase();
@@ -22,6 +35,9 @@ export async function GET(request: Request) {
 
   if (!code && !contact) {
     return NextResponse.json({ error: "Enter a tracking reference code or phone/email." }, { status: 400 });
+  }
+  if (code && !contact) {
+    return NextResponse.json({ error: "Enter the phone number or email used for this request to verify the tracking code." }, { status: 400 });
   }
 
   try {
@@ -42,12 +58,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "No job application found with that tracking code." }, { status: 404 });
       }
       if (contact) {
-        const cleanDigits = contact.replace(/\D/g, "");
-        const appDigits = String(app.phone || "").replace(/\D/g, "");
-        const matchesPhone = cleanDigits.length >= 4 && appDigits.endsWith(cleanDigits.slice(-4));
+        const matchesPhone = phoneContactMatches(contact, String(app.phone || ""));
         const matchesEmail = contact.toLowerCase() === String(app.email || "").toLowerCase();
         if (!matchesPhone && !matchesEmail) {
-          return NextResponse.json({ error: "Phone or email does not match this tracking code." }, { status: 403 });
+          return NextResponse.json({ error: "Phone number or email does not match this tracking code." }, { status: 403 });
         }
       }
 
@@ -87,7 +101,7 @@ export async function GET(request: Request) {
       });
     } else if (code.startsWith("YEL-APT-")) {
       const apt = await queryOne<RowDataPacket>(
-        `SELECT tracking_code, service_type, target, client_name, client_phone, preferred_date,
+        `SELECT tracking_code, service_type, target, client_name, client_phone, client_email, preferred_date,
                 preferred_time, location, estimated_kes, service_options, status, staff_notes, created_at, updated_at
          FROM appointment_requests
          WHERE tracking_code = ?
@@ -98,10 +112,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "No appointment or sanitation dispatch found with that code." }, { status: 404 });
       }
       if (contact) {
-        const cleanDigits = contact.replace(/\D/g, "");
-        const aptDigits = String(apt.client_phone || "").replace(/\D/g, "");
-        if (cleanDigits.length < 4 || !aptDigits.endsWith(cleanDigits.slice(-4))) {
-          return NextResponse.json({ error: "Phone number does not match this tracking code." }, { status: 403 });
+        const matchesPhone = phoneContactMatches(contact, String(apt.client_phone || ""));
+        const matchesEmail = contact.toLowerCase() === String(apt.client_email || "").toLowerCase();
+        if (!matchesPhone && !matchesEmail) {
+          return NextResponse.json({ error: "Phone number or email does not match this tracking code." }, { status: 403 });
         }
       }
 
@@ -132,12 +146,17 @@ export async function GET(request: Request) {
       });
     } else if (code.startsWith("YEL-INQ-")) {
       const inq = await queryOne<RowDataPacket>(
-        `SELECT tracking_code, division, inquiry_type, listing_title, subject, full_name, status, staff_notes, created_at, updated_at
+        `SELECT tracking_code, division, inquiry_type, listing_title, subject, full_name, phone, email, status, staff_notes, created_at, updated_at
          FROM inquiries WHERE tracking_code = ? LIMIT 1`,
         [code],
       );
       if (!inq) {
         return NextResponse.json({ error: "No enquiry found with that reference code." }, { status: 404 });
+      }
+      const matchesPhone = phoneContactMatches(contact, String(inq.phone || ""));
+      const matchesEmail = contact.toLowerCase() === String(inq.email || "").toLowerCase();
+      if (!matchesPhone && !matchesEmail) {
+        return NextResponse.json({ error: "Phone number or email does not match this tracking code." }, { status: 403 });
       }
       primaryKind = "inquiry";
       primaryRecord = inq;
@@ -161,12 +180,23 @@ export async function GET(request: Request) {
       if (!ord) {
         return NextResponse.json({ error: "No order or request found with that reference code." }, { status: 404 });
       }
+      const matchesPhone = phoneContactMatches(contact, String(ord.phone || ""));
+      const matchesEmail = contact.toLowerCase() === String(ord.email || "").toLowerCase();
+      if (!matchesPhone && !matchesEmail) {
+        return NextResponse.json({ error: "Phone number or email does not match this tracking code." }, { status: 403 });
+      }
       const events = await queryRows<RowDataPacket>(
         `SELECT status, note, created_at FROM order_status_events WHERE order_id = ? ORDER BY created_at ASC`,
         [ord.id],
       );
       primaryKind = "order";
-      primaryRecord = ord;
+      primaryRecord = {
+        order_number: ord.order_number,
+        status: ord.status,
+        payment_status: ord.payment_status,
+        total_amount: Number(ord.total_amount),
+        created_at: ord.created_at,
+      };
       results.push({
         kind: "order",
         trackingCode: ord.order_number,
@@ -179,35 +209,35 @@ export async function GET(request: Request) {
     } else if (contact) {
       // Search recent requests matching phone suffix or exact email
       const digits = contact.replace(/\D/g, "");
-      const suffix = digits.length >= 6 ? digits.slice(-9) : null;
+      const suffix = digits.length >= 9 ? digits.slice(-9) : null;
       const emailLookup = contact.includes("@") ? contact.toLowerCase() : null;
 
       if (!suffix && !emailLookup) {
-        return NextResponse.json({ error: "Enter at least 6 phone digits or a valid email address." }, { status: 400 });
+        return NextResponse.json({ error: "Enter at least 9 phone digits or a valid email address." }, { status: 400 });
       }
 
       const [apps, apts, inqs] = await Promise.all([
         queryRows<RowDataPacket>(
           `SELECT tracking_code, job_title, destination, full_name, status, created_at
            FROM job_applications
-           WHERE (? IS NOT NULL AND REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '') LIKE CONCAT('%', ?))
-              OR (? IS NOT NULL AND LOWER(email) = ?)
+           WHERE (CAST(? AS text) IS NOT NULL AND RIGHT(regexp_replace(phone, '[^0-9]', '', 'g'), 9) = ?)
+              OR (CAST(? AS text) IS NOT NULL AND LOWER(email) = ?)
            ORDER BY created_at DESC LIMIT 5`,
           [suffix, suffix, emailLookup, emailLookup],
         ),
         queryRows<RowDataPacket>(
           `SELECT tracking_code, target, preferred_date, preferred_time, location, estimated_kes, status, created_at
            FROM appointment_requests
-           WHERE (? IS NOT NULL AND REPLACE(REPLACE(REPLACE(client_phone, '+', ''), ' ', ''), '-', '') LIKE CONCAT('%', ?))
-              OR (? IS NOT NULL AND LOWER(client_email) = ?)
+           WHERE (CAST(? AS text) IS NOT NULL AND RIGHT(regexp_replace(client_phone, '[^0-9]', '', 'g'), 9) = ?)
+              OR (CAST(? AS text) IS NOT NULL AND LOWER(client_email) = ?)
            ORDER BY created_at DESC LIMIT 5`,
           [suffix, suffix, emailLookup, emailLookup],
         ),
         queryRows<RowDataPacket>(
           `SELECT tracking_code, division, inquiry_type, listing_title, subject, status, created_at
            FROM inquiries
-           WHERE (? IS NOT NULL AND REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '') LIKE CONCAT('%', ?))
-              OR (? IS NOT NULL AND LOWER(email) = ?)
+           WHERE (CAST(? AS text) IS NOT NULL AND RIGHT(regexp_replace(phone, '[^0-9]', '', 'g'), 9) = ?)
+              OR (CAST(? AS text) IS NOT NULL AND LOWER(email) = ?)
            ORDER BY created_at DESC LIMIT 5`,
           [suffix, suffix, emailLookup, emailLookup],
         ),

@@ -126,6 +126,11 @@ export async function POST(request: Request) {
 
   try {
     const outcome = await withTransaction(async (conn) => {
+      await conn.query(
+        `SELECT pg_advisory_xact_lock(hashtext(?))`,
+        [`appointment-request:${body.requestId}`],
+      );
+
       const [existingRows] = await conn.query<RowDataPacket[]>(
         `SELECT * FROM appointment_requests WHERE request_id = ? LIMIT 1`,
         [body.requestId],
@@ -138,13 +143,20 @@ export async function POST(request: Request) {
         `SELECT setting_value FROM site_settings WHERE setting_key = 'business_rules' LIMIT 1`,
       );
       const rules = parseJsonValue<{ maxAppointmentsPerSlot?: number }>(ruleRows[0]?.setting_value, {});
-      const maxSlots = Number(rules.maxAppointmentsPerSlot || 3);
+      const configuredMaxSlots = Number(rules.maxAppointmentsPerSlot);
+      const maxSlots = Number.isSafeInteger(configuredMaxSlots) && configuredMaxSlots > 0
+        ? configuredMaxSlots
+        : 3;
+
+      await conn.query(
+        `SELECT pg_advisory_xact_lock(hashtext(?))`,
+        [`appointment-slot:${body.serviceType}:${preferredDate}:${preferredTime}`],
+      );
 
       const [slotRows] = await conn.query<RowDataPacket[]>(
         `SELECT COUNT(*) AS cnt
          FROM appointment_requests
-         WHERE service_type = ? AND preferred_date = ? AND preferred_time = ? AND status <> 'Cancelled'
-         FOR UPDATE`,
+         WHERE service_type = ? AND preferred_date = ? AND preferred_time = ? AND status <> 'Cancelled'`,
         [body.serviceType, preferredDate, preferredTime],
       );
       if (Number(slotRows[0]?.cnt || 0) >= maxSlots) {

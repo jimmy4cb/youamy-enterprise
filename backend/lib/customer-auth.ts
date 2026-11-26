@@ -81,8 +81,8 @@ export async function registerCustomer(params: {
   if (!email && !phone) {
     throw new Error("Provide at least an email address or phone number.");
   }
-  if (params.password.length < 6) {
-    throw new Error("Password must be at least 6 characters.");
+  if (params.password.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
   }
 
   const passwordHash = await bcrypt.hash(params.password, 10);

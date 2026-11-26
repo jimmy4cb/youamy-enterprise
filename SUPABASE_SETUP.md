@@ -1,8 +1,12 @@
 # Supabase PostgreSQL setup
 
-Use Supabase's **Transaction pooler** connection string as the server-only `SUPABASE_DB_URL` in Vercel. Apply [`backend/database/migrations/202611250001_platform_postgres.sql`](backend/database/migrations/202611250001_platform_postgres.sql) in the Supabase SQL Editor before deploying.
+Use Supabase's **Transaction pooler** connection string as the server-only `SUPABASE_DB_URL` in Vercel. For a fresh project, apply [`supabase/migrations/20261126144900_new-migration.sql`](supabase/migrations/20261126144900_new-migration.sql) as the baseline. Alternatively, apply [`backend/database/migrations/202611250001_platform_postgres.sql`](backend/database/migrations/202611250001_platform_postgres.sql) in the Supabase SQL Editor. These are equivalent baselines; apply only one.
+
+The app currently connects through the server-side `pg` driver. The `SUPABASE_URL`, publishable key, secret key, and JWKS URL are not used by the app's database code; never expose the secret key in a `NEXT_PUBLIC_` variable. Copy the pooler URL from Supabase's Connect dialog rather than composing it manually.
 
 Set `ADMIN_BOOTSTRAP_EMAIL` and a fresh, unique `ADMIN_BOOTSTRAP_PASSWORD` (at least 12 characters) in Vercel for first-admin creation. The first request creates the `super_admin` if the private `yel.admin_users` table is empty. Remove the bootstrap credentials after the first successful login and TOTP setup.
+
+Set `NEXT_PUBLIC_SITE_URL` to the canonical deployed site URL for Flutterwave redirect links. M-Pesa, Flutterwave, Resend, and Twilio credentials are optional integrations; keep their keys server-only.
 
 ## Mapping existing catalog SQL
 

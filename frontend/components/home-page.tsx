@@ -165,7 +165,6 @@ export default function HomePage() {
     if (initialTrack) {
       setTrackCode(initialTrack);
       setTrackingOpen(true);
-      void runTrackLookup(initialTrack, "");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -950,7 +949,7 @@ export default function HomePage() {
               <details className="faq-item">
                 <summary>How can I track my job application, appointment or order?</summary>
                 <p>
-                  Click <strong>Track Application / Request</strong> at the top of this page and enter your reference code (e.g. YEL-APP-..., YEL-APT-..., YEL-INQ-..., or YEL-ORD-...) or phone number.
+                  Click <strong>Track Application / Request</strong> at the top of this page and enter your reference code with the phone number or email used for the request, or search using your phone or email.
                 </p>
               </details>
             </div>
@@ -1112,7 +1111,7 @@ export default function HomePage() {
             <span className="dialog-icon" aria-hidden="true">↗</span>
             <h2 id="tracker-dialog-title">Track application, booking or order</h2>
             <p>
-              Enter your reference code (e.g. <code>YEL-APP-...</code>, <code>YEL-APT-...</code>, <code>YEL-ORD-...</code>) or the phone/email used when submitting.
+              Enter a reference code and the phone number or email used for the request, or search using your phone number or email.
             </p>
             <form
               className="tracker-form"
@@ -1130,11 +1129,12 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Or phone / email
+                Phone number or email used for the request
                 <input
                   value={trackContact}
                   onChange={(e) => setTrackContact(e.target.value)}
                   placeholder="+2547... or email@example.com"
+                  required={Boolean(trackCode)}
                 />
               </label>
               <button type="submit" className="button button-primary" disabled={trackBusy}>

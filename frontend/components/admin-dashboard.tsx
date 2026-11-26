@@ -570,7 +570,7 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
       body: JSON.stringify({ settingKey: "business_rules", settingValue: rules }),
     });
     if (res.ok) {
-      setNotice("Business rules saved to MySQL.");
+      setNotice("Business rules saved to the database.");
       refreshSettings();
     } else {
       setError("Could not update settings.");

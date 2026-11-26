@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
         if (q.includes("slot") || q.includes("job") || q.includes("placed")) {
           return NextResponse.json<ChatResponse>({
-            reply: "When you move a candidate's application to \"Placed\" inside Applications, the system atomically increments the job's filled slots inside MySQL and automatically closes the posting once all openings are filled. Moving an application out of \"Placed\" restores the slot.",
+            reply: "When you move a candidate's application to \"Placed\" inside Applications, the system atomically increments the job's filled slots in the database and automatically closes the posting once all openings are filled. Moving an application out of \"Placed\" restores the slot.",
             cards: [
               { title: "Gulf Jobs Manager", subtitle: "Publish, edit, or close overseas positions", href: "#admin-jobs", actionLabel: "Open Gulf Jobs" },
               { title: "Job Applications", subtitle: "Screen candidates & mark Placed", href: "#admin-applications", actionLabel: "Open Applications" },

@@ -23,7 +23,7 @@ export async function emailInquiryToTeam(inquiry: InquiryEmail): Promise<Inquiry
   if (!apiKey || !from || !to) {
     return {
       status: "not_configured",
-      error: "Email delivery optional; inquiry saved in MySQL.",
+      error: "Email delivery optional; inquiry saved in the database.",
     };
   }
 

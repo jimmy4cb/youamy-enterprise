@@ -27,7 +27,7 @@ export async function emailAppointmentToTeam(
   if (!apiKey || !from || !to) {
     return {
       status: "not_configured",
-      error: "Email delivery optional; appointment saved in MySQL.",
+      error: "Email delivery optional; appointment saved in the database.",
     };
   }
 
