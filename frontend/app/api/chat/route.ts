@@ -355,7 +355,7 @@ export async function POST(request: Request) {
         cards: [
           { title: "Online Shop & Rentals", subtitle: "Add vehicles, short stays, or sanitation plans", href: "/#shop", actionLabel: "Browse Shop" },
           { title: "Your Cart", subtitle: "Review selected items before payment", href: "/cart", actionLabel: "Open Cart" },
-          { title: "Client Sign In", subtitle: "Demo: client@youamyenterprises.com / ClientDemo!2026", href: "/sign-in", actionLabel: "Sign In" },
+          { title: "Client Sign In", subtitle: "Manage your account and orders", href: "/sign-in", actionLabel: "Sign In" },
           { title: "My Orders & PDF Receipts", subtitle: "View live fulfillment progress & download receipts", href: "/orders", actionLabel: "My Orders" },
         ],
         suggestions: ["Browse Shop", "Track a YEL code", "Show open Gulf jobs", "Sanitation quote estimate"],
