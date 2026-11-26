@@ -119,22 +119,6 @@ export default function SignInForm() {
                 {busy ? "Signing in…" : "Sign in and continue"}
               </button>
 
-              <div className="demo-account-box">
-                <div>
-                  <strong>Demo client account</strong>
-                  <span>client@youamyenterprises.com · ClientDemo!2026</span>
-                </div>
-                <button
-                  type="button"
-                  className="journey-secondary"
-                  onClick={() => {
-                    setIdentifier("client@youamyenterprises.com");
-                    setPassword("ClientDemo!2026");
-                  }}
-                >
-                  Fill demo
-                </button>
-              </div>
             </form>
           ) : (
             <form className="journey-form" onSubmit={submitRegister}>
