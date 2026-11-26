@@ -317,8 +317,7 @@ button {
 .hero {
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 82% 65%, rgb(87 0 213 / 35%), transparent 52%),
-    linear-gradient(90deg, rgb(9 17 46 / 96%) 0%, rgb(16 19 67 / 88%) 54%, rgb(29 8 77 / 62%) 100%),
+    linear-gradient(90deg, rgb(9 17 46 / 91%) 0%, rgb(16 19 67 / 77%) 44%, rgb(29 8 77 / 45%) 100%),
     url("/properties/modern-4-bedroom-villa-dsq.avif") center 42% / cover no-repeat;
 }
 
