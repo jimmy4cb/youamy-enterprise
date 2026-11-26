@@ -8,6 +8,7 @@
     "build": "next build frontend",
     "start": "next start frontend -H 0.0.0.0 -p 3000",
     "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
+    "db:check": "node --env-file=frontend/.env scripts/check-supabase.mjs",
     "admin:bootstrap": "node --env-file=frontend/.env scripts/bootstrap-admin.mjs"
   },
   "dependencies": {

@@ -5,6 +5,33 @@ import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteHeader, SiteFooter } from "@/components/site-shell";
 
+type AuthResponse = {
+  error?: string;
+};
+
+async function readAuthResponse(response: Response): Promise<AuthResponse> {
+  const rawText = await response.text();
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    console.error("Auth API returned a non-JSON response:", {
+      status: response.status,
+      body: rawText.slice(0, 500),
+    });
+    throw new Error(`Server error (${response.status}). Check API logs.`);
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("Unexpected response from the server.");
+  }
+
+  return {
+    error: "error" in parsed && typeof parsed.error === "string" ? parsed.error : undefined,
+  };
+}
+
 export default function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -30,7 +57,7 @@ export default function SignInForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier, password }),
       });
-      const result = await response.json();
+      const result = await readAuthResponse(response);
       if (!response.ok) throw new Error(result.error || "Sign in failed.");
       router.replace(safeNextPath);
       router.refresh();
@@ -50,7 +77,7 @@ export default function SignInForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullName, email, phone, password }),
       });
-      const result = await response.json();
+      const result = await readAuthResponse(response);
       if (!response.ok) throw new Error(result.error || "Could not create account.");
       router.replace(safeNextPath);
       router.refresh();
