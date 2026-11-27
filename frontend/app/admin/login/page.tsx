@@ -11,6 +11,7 @@ export default function AdminLoginPage() {
   const [setupSecret, setSetupSecret] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,46 +74,112 @@ export default function AdminLoginPage() {
 
   return (
     <main className="admin-login-shell">
-      <section className="admin-login-panel">
-        <Image src="/yel-logo.jpg" alt="Youamy Enterprises Limited" width={72} height={54} priority />
-        <p>Staff portal · Youamy Enterprises</p>
-        <h1>{step === "password" ? "Admin sign in" : "Two-step verification"}</h1>
+      <section className="admin-login-card" aria-label="Administration sign in">
+        <aside className="admin-login-brand">
+          <Image
+            src="/yel-logo.jpg"
+            alt="Youamy Enterprises Limited"
+            width={88}
+            height={66}
+            priority
+          />
+          <div className="admin-login-brand-copy">
+            <p>Administration</p>
+            <h2>One workspace.<br />Every division.</h2>
+          </div>
+          <span className="admin-login-brand-mark" aria-hidden="true">YEL</span>
+        </aside>
 
-        {step === "password" ? (
-          <form onSubmit={signIn} className="admin-login-form">
-            <label>
-              Work email address
-              <input name="email" type="email" autoComplete="username" placeholder="admin@youamyenterprises.com" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" autoComplete="current-password" required />
-            </label>
-            {error && <div className="admin-login-error">{error}</div>}
-            <button type="submit" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in to workspace"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={verify} className="admin-login-form">
-            {setupSecret && (
-              <div className="totp-setup">
-                <strong>Set up two-step verification</strong>
-                <span>Add this secret to your authenticator app:</span>
-                <code>{setupSecret}</code>
-              </div>
-            )}
-            <label>
-              6-digit verification code
-              <input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required />
-            </label>
-            {error && <div className="admin-login-error">{error}</div>}
-            <button type="submit" disabled={loading}>
-              {loading ? "Verifying…" : "Verify & enter workspace"}
-            </button>
-          </form>
-        )}
-        <Link href="/">← Back to public website</Link>
+        <div className="admin-login-panel">
+          <Link className="admin-login-back" href="/">← Public website</Link>
+          <div className="admin-login-heading">
+            <span className="admin-login-step">
+              {step === "password" ? "Secure access" : "Identity check"}
+            </span>
+            <h1>{step === "password" ? "Welcome back" : "Enter verification code"}</h1>
+            <p>
+              {step === "password"
+                ? "Sign in to manage Youamy Enterprises."
+                : "Open your authenticator app and enter the six-digit code."}
+            </p>
+          </div>
+
+          {step === "password" ? (
+            <form onSubmit={signIn} className="admin-login-form">
+              <label>
+                Work email
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="name@youamyenterprises.com"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <span className="admin-password-field">
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </span>
+              </label>
+              {error && <div className="admin-login-error" role="alert">{error}</div>}
+              <button className="admin-login-submit" type="submit" disabled={loading}>
+                {loading ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={verify} className="admin-login-form">
+              {setupSecret && (
+                <div className="totp-setup">
+                  <strong>Set up authenticator</strong>
+                  <span>Add this secret to your authenticator app:</span>
+                  <code>{setupSecret}</code>
+                </div>
+              )}
+              <label>
+                Verification code
+                <input
+                  className="admin-totp-input"
+                  name="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  placeholder="000000"
+                  required
+                />
+              </label>
+              {error && <div className="admin-login-error" role="alert">{error}</div>}
+              <button className="admin-login-submit" type="submit" disabled={loading}>
+                {loading ? "Verifying…" : "Verify and continue"}
+              </button>
+              <button
+                className="admin-login-secondary"
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setSetupSecret("");
+                  setStep("password");
+                }}
+              >
+                Back to sign in
+              </button>
+            </form>
+          )}
+        </div>
       </section>
     </main>
   );
