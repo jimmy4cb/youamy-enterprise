@@ -23,7 +23,7 @@ export async function GET() {
 
   const jobs = await queryRows<RowDataPacket>(
     `SELECT j.*,
-            (SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id) AS applications_count
+            (SELECT COUNT(ja.job_id) FROM job_applications ja WHERE ja.job_id = j.id) AS applications_count
      FROM jobs j
      ORDER BY j.status = 'Published' DESC, j.deadline ASC, j.id DESC`,
   );

@@ -16,10 +16,11 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
+  const mayViewClientEmail = staff.role === "super_admin" || staff.role === "orders_admin";
   const orders = await queryRows<RowDataPacket>(
     `SELECT o.id, o.order_number, o.status, o.payment_status, o.total_amount, o.currency,
             o.cancel_requested_at, o.cancel_reason, o.created_at,
-            c.full_name, c.phone, c.email
+            c.full_name, c.phone, ${mayViewClientEmail ? "c.email" : "NULL::text AS email"}
      FROM orders o
      JOIN customers c ON c.id = o.customer_id
      ORDER BY o.created_at DESC`,

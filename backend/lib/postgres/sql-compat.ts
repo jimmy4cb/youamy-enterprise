@@ -1,5 +1,6 @@
-import type { Pool, PoolClient } from "pg";
+import { Pool, type PoolClient, type QueryResult } from "pg";
 import type { PoolConnection, QueryTuple, ResultSetHeader, RowDataPacket } from "./types";
+import { getAdminDatabaseRoleContext } from "./role-context";
 
 const ID_TABLES = new Set([
   "admin_users",
@@ -77,14 +78,33 @@ function isReadQuery(sql: string): boolean {
 }
 
 export async function runQuery<T>(
-  client: Pick<Pool | PoolClient, "query">,
+  client: Pool | PoolClient,
   sql: string,
   values: readonly unknown[] = [],
+  roleAlreadySet = false,
 ): Promise<QueryTuple<T>> {
   const prepared = toPostgresSql(qualifyTables(sql));
-  const result = await client.query(prepared.text, values.map((value) =>
-    typeof value === "boolean" ? Number(value) : value,
-  ));
+  const queryValues = values.map((value) => typeof value === "boolean" ? Number(value) : value);
+  const context = getAdminDatabaseRoleContext();
+  let result: QueryResult;
+
+  if (context && !roleAlreadySet) {
+    if (client instanceof Pool) {
+      const transactionClient = await client.connect();
+      try {
+        result = await runInAdminRole(transactionClient, context, () =>
+          transactionClient.query(prepared.text, queryValues),
+        );
+      } finally {
+        transactionClient.release();
+      }
+    } else {
+      result = await runInAdminRole(client, context, () => client.query(prepared.text, queryValues));
+    }
+  } else {
+    result = await client.query(prepared.text, queryValues);
+  }
+
   if (isReadQuery(sql)) return [result.rows as T];
 
   const firstRow = result.rows[0] as { id?: number | string } | undefined;
@@ -95,20 +115,62 @@ export async function runQuery<T>(
   return [metadata as T];
 }
 
+async function runInAdminRole<T>(
+  client: Pick<PoolClient, "query">,
+  context: { roleName: string; adminUserId: number },
+  query: () => Promise<T>,
+): Promise<T> {
+  if (!/^[a-z][a-z0-9_]*$/.test(context.roleName)) {
+    throw new Error("Invalid database role name.");
+  }
+
+  await client.query("BEGIN");
+  try {
+    await client.query(`SET LOCAL ROLE "${context.roleName}"`);
+    await client.query("SELECT set_config('yel.admin_user_id', $1, true)", [String(context.adminUserId)]);
+    const result = await query();
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
+}
+
 export function createTransactionConnection(client: PoolClient): PoolConnection & { release(): void } {
+  let roleAlreadySet = false;
   return {
     query: <T = RowDataPacket[]>(sql: string, values: readonly unknown[] = []) =>
-      runQuery<T>(client, sql, values),
+      runQuery<T>(client, sql, values, roleAlreadySet),
     execute: <T = ResultSetHeader[]>(sql: string, values: readonly unknown[] = []) =>
-      runQuery<T>(client, sql, values),
+      runQuery<T>(client, sql, values, roleAlreadySet),
     beginTransaction: async () => {
       await client.query("BEGIN");
+      const context = getAdminDatabaseRoleContext();
+      if (context) {
+        try {
+          await client.query(`SET LOCAL ROLE "${context.roleName}"`);
+          await client.query("SELECT set_config('yel.admin_user_id', $1, true)", [String(context.adminUserId)]);
+          roleAlreadySet = true;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        }
+      }
     },
     commit: async () => {
-      await client.query("COMMIT");
+      try {
+        await client.query("COMMIT");
+      } finally {
+        roleAlreadySet = false;
+      }
     },
     rollback: async () => {
-      await client.query("ROLLBACK");
+      try {
+        await client.query("ROLLBACK");
+      } finally {
+        roleAlreadySet = false;
+      }
     },
     release: () => client.release(),
   };

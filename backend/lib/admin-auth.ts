@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import type { RowDataPacket } from "@backend/lib/postgres";
 import { executeSql, queryOne, queryRows } from "./postgres";
+import { bindDatabaseRoleForAdmin } from "./postgres/role-context";
 
 export const SESSION_COOKIE = "yel_admin_session";
 export const PENDING_COOKIE = "yel_admin_pending";
@@ -78,6 +79,7 @@ export async function getSessionUser(): Promise<AdminUser | null> {
   );
 
   if (!row) return null;
+  bindDatabaseRoleForAdmin(row.role, Number(row.id));
   return {
     id: Number(row.id),
     name: row.name,

@@ -36,6 +36,9 @@ export async function PATCH(request: Request) {
   if (!body?.settingKey || !body.settingValue || typeof body.settingValue !== "object") {
     return NextResponse.json({ error: "Provide settingKey and settingValue." }, { status: 400 });
   }
+  if (user.role === "content_editor" && body.settingKey !== "company_profile") {
+    return NextResponse.json({ error: "Content editors can only update the company profile." }, { status: 403 });
+  }
 
   await executeSql(
     `INSERT INTO site_settings (setting_key, setting_value, updated_by)

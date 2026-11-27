@@ -1,5 +1,6 @@
 -- Baseline Supabase migration for the current YEL platform.
 -- Apply to a fresh project; do not also apply the backend SQL baseline.
+-- Version matches the migration recorded on the hosted Supabase project.
 -- The private yel schema keeps these tables separate from earlier public-schema data.
 CREATE SCHEMA IF NOT EXISTS yel;
 SET search_path TO yel, public;

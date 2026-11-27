@@ -13,42 +13,42 @@ export async function getAdminOverviewMetrics() {
     recentActivity,
   ] = await Promise.all([
     queryOne<RowDataPacket>(
-      `SELECT COALESCE(SUM(total_amount), 0) AS paid_revenue, COUNT(*) AS paid_orders
+      `SELECT COALESCE(SUM(total_amount), 0) AS paid_revenue, COUNT(id) AS paid_orders
        FROM orders WHERE payment_status = 'paid'`,
     ),
     queryOne<RowDataPacket>(
-      `SELECT COUNT(*) AS total_orders,
+      `SELECT COUNT(id) AS total_orders,
               SUM(CASE WHEN status = 'Placed' OR status = 'Confirmed' OR status = 'In progress' THEN 1 ELSE 0 END) AS active_orders,
               SUM(CASE WHEN cancel_requested_at IS NOT NULL AND status NOT IN ('Cancelled', 'Completed') THEN 1 ELSE 0 END) AS cancel_requests
        FROM orders`,
     ),
     queryOne<RowDataPacket>(
-      `SELECT COUNT(*) AS total_jobs,
+      `SELECT COUNT(id) AS total_jobs,
               SUM(CASE WHEN status = 'Published' THEN 1 ELSE 0 END) AS active_jobs,
               COALESCE(SUM(CASE WHEN status = 'Published' THEN GREATEST(0, openings_total - openings_filled) ELSE 0 END), 0) AS remaining_slots
        FROM jobs`,
     ),
     queryOne<RowDataPacket>(
-      `SELECT COUNT(*) AS total_products,
+      `SELECT COUNT(id) AS total_products,
               SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS available_products,
               SUM(CASE WHEN division = 'Vehicles' AND status = 'available' THEN 1 ELSE 0 END) AS vehicles_count,
               SUM(CASE WHEN division = 'Real Estate' AND status = 'available' THEN 1 ELSE 0 END) AS properties_count
        FROM products WHERE status <> 'archived'`,
     ),
     queryOne<RowDataPacket>(
-      `SELECT COUNT(*) AS total_applications,
+      `SELECT COUNT(id) AS total_applications,
               SUM(CASE WHEN status = 'New' THEN 1 ELSE 0 END) AS new_applications,
               SUM(CASE WHEN status = 'Shortlisted' OR status = 'Visa Processing' THEN 1 ELSE 0 END) AS in_pipeline,
               SUM(CASE WHEN status = 'Placed' THEN 1 ELSE 0 END) AS placed_count
        FROM job_applications`,
     ),
     queryOne<RowDataPacket>(
-      `SELECT COUNT(*) AS total_appointments,
+      `SELECT COUNT(id) AS total_appointments,
               SUM(CASE WHEN status = 'Requested' THEN 1 ELSE 0 END) AS pending_appointments
        FROM appointment_requests`,
     ),
     queryOne<RowDataPacket>(
-      `SELECT COUNT(*) AS total_inquiries,
+      `SELECT COUNT(id) AS total_inquiries,
               SUM(CASE WHEN status = 'unread' THEN 1 ELSE 0 END) AS unread_inquiries
        FROM inquiries`,
     ),
