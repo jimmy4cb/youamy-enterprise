@@ -8,6 +8,10 @@ The app currently connects through the server-side `pg` driver. The `SUPABASE_UR
 
 Set `ADMIN_BOOTSTRAP_EMAIL` and a fresh, unique `ADMIN_BOOTSTRAP_PASSWORD` (at least 12 characters) in Vercel for first-admin creation. The first request creates the `super_admin` if the private `yel.admin_users` table is empty. Remove the bootstrap credentials after the first successful login and TOTP setup.
 
+## Customer sign-up and sign-in after deployment
+
+Customer accounts use the app's database-backed auth at `/sign-in`, not Supabase Auth. Sign-up and sign-in are available by default through `/api/shop/auth/register` and `/api/shop/auth/login`. For production, add the valid Transaction pooler connection string as the server-only `SUPABASE_DB_URL` in Vercel's Production environment, then redeploy. Do not copy the password into source control or a `NEXT_PUBLIC_` variable. Verify the deployed connection with `npm run db:check` before testing account creation and sign-in.
+
 Set `NEXT_PUBLIC_SITE_URL` to the canonical deployed site URL for Flutterwave redirect links. M-Pesa, Flutterwave, Resend, and Twilio credentials are optional integrations; keep their keys server-only.
 
 ## Mapping existing catalog SQL
