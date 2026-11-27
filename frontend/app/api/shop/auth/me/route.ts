@@ -30,7 +30,8 @@ export async function GET() {
       unreadAlerts: Number(alertsRow?.cnt || 0),
       cartCount: Number(cartRow?.cnt || 0),
     });
-  } catch {
-    return NextResponse.json({ authenticated: false, customer: null, unreadAlerts: 0, cartCount: 0 });
+  } catch (error) {
+    console.error("Customer session lookup failed:", error);
+    return NextResponse.json({ error: "Could not check your account right now." }, { status: 503 });
   }
 }
