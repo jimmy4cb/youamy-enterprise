@@ -26,11 +26,24 @@ const navLinks = [
 export function SiteHeader({ onOpenTrack }: { onOpenTrack?: () => void }) {
   const pathname = usePathname() || "/";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [count, setCount] = useState(0);
   const [customer, setCustomer] = useState<CustomerSummary | null>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("youamy-theme");
+    const nextTheme =
+      savedTheme === "dark" || savedTheme === "light"
+        ? savedTheme
+        : window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+  }, []);
 
   useEffect(() => {
     const syncCount = () => setCount(cartCount());
@@ -101,6 +114,12 @@ export function SiteHeader({ onOpenTrack }: { onOpenTrack?: () => void }) {
   }, [mobileMenuOpen]);
 
   const firstName = customer?.full_name?.trim().split(/\s+/)[0] || "Account";
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem("youamy-theme", nextTheme);
+  };
 
   return (
     <>
@@ -193,6 +212,24 @@ export function SiteHeader({ onOpenTrack }: { onOpenTrack?: () => void }) {
           </nav>
 
           <div className="header-actions">
+            <button
+              type="button"
+              className="theme-toggle"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z" />
+                </svg>
+              )}
+            </button>
             <Link className="nav-action cart-action" href="/cart">
               Cart{count > 0 ? <span className="header-cart-badge">{count}</span> : null}
             </Link>
