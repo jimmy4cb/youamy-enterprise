@@ -472,7 +472,7 @@ export default function HomePage() {
               </button>
             </div>
             <p className="hero-note">
-              Need instant M-Pesa checkout or bookings? Jump straight to our <a href="#shop" style={{ color: "#efd565", textDecoration: "underline" }}>Online Shop &amp; Rentals</a>.
+              Ready to place an order or arrange a booking? Visit our <a href="#shop" style={{ color: "#efd565", textDecoration: "underline" }}>Online Shop &amp; Rentals</a>.
             </p>
           </div>
 
@@ -988,18 +988,18 @@ export default function HomePage() {
               <div className="office-map">
                 <iframe
                   title="Approximate Youamy Enterprises office location in Mombasa CBD"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=39.657%2C-4.052%2C39.679%2C-4.036&layer=mapnik&marker=${officeCoordinates.latitude}%2C${officeCoordinates.longitude}`}
+                  src={`https://www.google.com/maps?q=${officeCoordinates.latitude},${officeCoordinates.longitude}&z=16&output=embed`}
                   loading="lazy"
                   referrerPolicy="strict-origin-when-cross-origin"
                 />
                 <div>
                   <span>Mombasa CBD · approximate office pin</span>
                   <a
-                    href={`https://www.openstreetmap.org/?mlat=${officeCoordinates.latitude}&mlon=${officeCoordinates.longitude}#map=16/${officeCoordinates.latitude}/${officeCoordinates.longitude}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${officeCoordinates.latitude}%2C${officeCoordinates.longitude}`}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Open pinned location
+                    Open in Google Maps
                   </a>
                 </div>
               </div>

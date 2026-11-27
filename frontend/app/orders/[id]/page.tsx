@@ -96,7 +96,10 @@ export default function OrderDetailPage() {
           <header className="journey-page-head"><div><p className="section-kicker">Order detail</p><h1>{order.order_number}</h1></div><Link href="/orders">My Orders</Link></header>
           <div className="order-detail-layout">
             <section className="order-detail-main">
-              <div className="order-status-banner"><strong>{order.status}</strong><span>Payment {order.payment_status}</span></div>
+              <div className="order-status-banner">
+                <strong>{order.status}</strong>
+                <span>{order.payment_status === "paid" ? "Payment received" : "Payment due at scheduled visit"}</span>
+              </div>
               <section className="checkout-section">
                 <h2>Order progress</h2>
                 <ol className="order-timeline">
@@ -132,7 +135,9 @@ export default function OrderDetailPage() {
               {notice && <p className="journey-notice">{notice}</p>}
               {error && <p className="journey-error">{error}</p>}
               {order.payment_status === "paid" && <a className="button button-primary" href={`/api/shop/orders/${order.id}/receipt`}>Download receipt (PDF)</a>}
-              {order.payment_status !== "paid" && <Link className="button button-primary" href={`/payment/status?order=${order.id}`}>Complete / check payment</Link>}
+              {order.payment_status !== "paid" && (
+                <p className="checkout-note">The admin team will contact you to confirm your physical visit. Pay in person at the arranged time.</p>
+              )}
               {!order.cancel_requested_at && !["Completed", "Cancelled"].includes(order.status) && order.payment_status === "paid" && (
                 <button className="journey-cancel-request" onClick={requestCancel}>Request cancellation</button>
               )}

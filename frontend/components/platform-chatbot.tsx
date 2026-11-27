@@ -24,7 +24,7 @@ const PUBLIC_SUGGESTIONS = [
   "Estimate septic tank quote",
   "Vehicles & Prado hire",
   "Short-stay apartments",
-  "M-Pesa checkout help",
+  "How do I pay for an order?",
 ];
 
 const ADMIN_SUGGESTIONS = [
@@ -70,7 +70,7 @@ export default function PlatformChatbot() {
         role: "assistant",
         text: isAdmin
           ? "Hi! I am your **Admin Copilot**. Ask for a live operations summary, jump to any tab, or check job-slot & order rules."
-          : "Hello! I am **Youamy Assistant**. Ask me about Gulf jobs, vehicles & Prado hire, real estate, instant sanitation quotes, M-Pesa checkout, or paste a `YEL-` tracking code.",
+          : "Hello! I am **Youamy Assistant**. Ask me about Gulf jobs, vehicles & Prado hire, real estate, sanitation quotes, in-person order payments, or paste a `YEL-` tracking code.",
       },
     ]);
   }, [isAdmin]);

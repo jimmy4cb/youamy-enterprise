@@ -39,9 +39,6 @@ export default function CheckoutForm({
 }) {
   const router = useRouter();
   const [items, setItems] = useState<BrowserCartItem[]>([]);
-  const [method, setMethod] = useState<"mpesa" | "flutterwave">("mpesa");
-  const [phone, setPhone] = useState(initialPhone);
-  const [verifiedTotal, setVerifiedTotal] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -76,7 +73,7 @@ export default function CheckoutForm({
           writeCart(merged);
         }
       } catch {
-        if (active) setError("Could not sync your saved cart. Try again before paying.");
+        if (active) setError("Could not sync your saved cart. Try again before submitting your order.");
       }
     };
     void sync();
@@ -87,8 +84,6 @@ export default function CheckoutForm({
     () => items.reduce((sum, item) => sum + item.amount_kes * item.quantity * calculateItemMultiplier(item).units, 0),
     [items],
   );
-  const displayedTotal = verifiedTotal ?? total;
-
   function updateBookingDetail(productId: string, key: string, value: string) {
     setItems((current) => {
       const updated = current.map((item) =>
@@ -101,7 +96,7 @@ export default function CheckoutForm({
     });
   }
 
-  async function pay(event: FormEvent<HTMLFormElement>) {
+  async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!items.length) return;
     setBusy(true);
@@ -159,29 +154,11 @@ export default function CheckoutForm({
       });
       const orderResult = await orderResponse.json();
       if (!orderResponse.ok) throw new Error(orderResult.error || "Could not create your order.");
-      setVerifiedTotal(orderResult.order.total_amount);
-      window.localStorage.setItem(keyStorage, JSON.stringify({
-        ...checkoutSession,
-        orderId: orderResult.order.order_id,
-      }));
-
-      const paymentResponse = await fetch("/api/shop/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: orderResult.order.order_id, provider: method, phone }),
-      });
-      const payment = await paymentResponse.json();
-      if (!paymentResponse.ok) throw new Error(payment.error || "Could not start payment. You can try again.");
-      if (payment.url) {
-        router.push(payment.url.startsWith("/") ? payment.url : `/payment/status?order=${orderResult.order.order_id}`);
-        if (!payment.url.startsWith("/")) {
-          window.location.assign(payment.url);
-        }
-        return;
-      }
-      router.push(`/payment/status?order=${orderResult.order.order_id}${payment.sandbox ? "&sandbox=1" : ""}`);
+      writeCart([]);
+      window.localStorage.removeItem(keyStorage);
+      router.push(`/orders/${orderResult.order.order_id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Something went wrong. Your cart is saved; try again.");
+      setError(reason instanceof Error ? reason.message : "Could not submit your order. Your cart is saved; try again.");
       setBusy(false);
     }
   }
@@ -191,11 +168,11 @@ export default function CheckoutForm({
       <SiteHeader />
       <main className="journey-page journey-wide">
         <header className="journey-page-head">
-          <div><p className="section-kicker">Secure checkout</p><h1>Review and pay</h1></div>
+          <div><p className="section-kicker">Order details</p><h1>Place your order</h1></div>
           <Link href="/cart">Back to cart</Link>
         </header>
         <div className="cart-layout">
-          <form className="checkout-form" onSubmit={pay}>
+          <form className="checkout-form" onSubmit={submitOrder}>
             <section className="checkout-section">
               <h2>Items &amp; booking dates</h2>
               {items.map((item) => {
@@ -221,24 +198,11 @@ export default function CheckoutForm({
                   </div>
                 );
               })}
-              <p className="checkout-note">Booking conflicts and stock levels are verified atomically on the server before payment begins.</p>
+              <p className="checkout-note">Booking dates and stock are checked before your order is submitted.</p>
             </section>
             <section className="checkout-section">
-              <h2>Payment method</h2>
-              <label className={`payment-option${method === "mpesa" ? " selected" : ""}`}>
-                <input type="radio" name="payment" checked={method === "mpesa"} onChange={() => setMethod("mpesa")} />
-                <span><strong>M-Pesa STK Push</strong><small>Instant confirmation to your Safaricom phone</small></span>
-              </label>
-              {method === "mpesa" && (
-                <label className="checkout-phone">
-                  M-Pesa phone number
-                  <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+254 7xx xxx xxx" required />
-                </label>
-              )}
-              <label className={`payment-option${method === "flutterwave" ? " selected" : ""}`}>
-                <input type="radio" name="payment" checked={method === "flutterwave"} onChange={() => setMethod("flutterwave")} />
-                <span><strong>Card / Bank (Flutterwave)</strong><small>Visa, Mastercard and mobile money</small></span>
-              </label>
+              <h2>Payment at your visit</h2>
+              <p>No online payment is collected. The admin team will contact you to schedule a physical visit, and payment is made during that visit.</p>
             </section>
             <section className="checkout-section">
               <h2>Account contact</h2>
@@ -247,9 +211,9 @@ export default function CheckoutForm({
             </section>
             {error && <p className="journey-error">{error}</p>}
             <button className="button button-primary checkout-pay" type="submit" disabled={busy || items.length === 0}>
-              {busy ? "Starting secure payment…" : `Pay KES ${displayedTotal.toLocaleString("en-KE")}`}
+              {busy ? "Submitting order…" : `Submit order · KES ${total.toLocaleString("en-KE")}`}
             </button>
-            <p className="checkout-note">Only a verified payment gateway confirmation or manual finance clearance marks your order paid.</p>
+            <p className="checkout-note">Your order is not paid until the admin team records payment at your scheduled visit.</p>
           </form>
           <aside className="cart-summary">
             <h2>Your order</h2>
@@ -263,7 +227,7 @@ export default function CheckoutForm({
                 </p>
               );
             })}
-            <p className="cart-total"><span>Total</span><strong>KES {displayedTotal.toLocaleString("en-KE")}</strong></p>
+            <p className="cart-total"><span>Total due at visit</span><strong>KES {total.toLocaleString("en-KE")}</strong></p>
             <Link href="/cart">Edit cart</Link>
           </aside>
         </div>

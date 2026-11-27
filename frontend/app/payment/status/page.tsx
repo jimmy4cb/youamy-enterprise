@@ -8,23 +8,12 @@ import { SiteHeader, SiteFooter } from "@/components/site-shell";
 import { PanelSkeleton } from "@/components/skeletons";
 import { writeCart } from "@/lib/cart-store";
 
-type PaymentItem = {
-  id?: string;
-  provider: string;
-  status: string;
-  amount?: number;
-  provider_reference?: string | null;
-  metadata?: { sandbox?: boolean } | null;
-  raw_payload?: { sandbox?: boolean } | null;
-};
-
 type OrderStatus = {
   id: string;
   order_number: string;
   status: string;
   payment_status: string;
   total_amount: number;
-  payments?: PaymentItem[];
 };
 
 export default function PaymentStatusPage() {
@@ -42,10 +31,8 @@ export default function PaymentStatusPage() {
 function PaymentStatusContent() {
   const search = useSearchParams();
   const orderId = search.get("order");
-  const isSandboxParam = search.get("sandbox") === "1";
   const [order, setOrder] = useState<OrderStatus | null>(null);
   const [error, setError] = useState("");
-  const [simBusy, setSimBusy] = useState(false);
 
   async function fetchOrderStatus() {
     if (!orderId) return null;
@@ -85,40 +72,6 @@ function PaymentStatusContent() {
     };
   }, [orderId]);
 
-  async function simulateSandbox(outcome: "paid" | "failed") {
-    if (!orderId) return;
-    setSimBusy(true);
-    setError("");
-    try {
-      const response = await fetch("/api/shop/payments/sandbox-confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, outcome }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Sandbox confirmation failed.");
-      const updated = await fetchOrderStatus();
-      if (updated) {
-        setOrder(updated);
-        if (updated.payment_status === "paid") {
-          writeCart([]);
-          window.localStorage.removeItem("youamy-checkout-session");
-        }
-      }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Sandbox simulation failed.");
-    } finally {
-      setSimBusy(false);
-    }
-  }
-
-  const latestPayment = order?.payments?.[0];
-  const showSandboxControls = Boolean(
-    order &&
-    order.payment_status === "pending" &&
-    (isSandboxParam || latestPayment?.raw_payload?.sandbox || latestPayment?.metadata?.sandbox),
-  );
-
   return (
     <main className="journey-page">
       <section className="journey-panel payment-status-panel">
@@ -139,42 +92,16 @@ function PaymentStatusContent() {
         ) : order?.payment_status === "failed" || order?.payment_status === "cancelled" ? (
           <>
             <span className="payment-status-mark failed">!</span>
-            <h1>Payment was not completed</h1>
-            <p>Your cart is still saved. Return to checkout to retry or choose another payment method.</p>
-            <Link className="button button-primary" href="/checkout">Retry payment</Link>
+            <h1>Payment could not be confirmed</h1>
+            <p>Your order is still available. The admin team can help arrange an in-person visit for payment.</p>
+            <Link className="button button-primary" href={`/orders/${orderId}`}>View order</Link>
           </>
         ) : (
           <>
             <span className="payment-spinner" aria-hidden="true" />
-            <h1>Waiting for payment confirmation</h1>
-            <p>Keep this page open while we confirm your {latestPayment?.provider === "flutterwave" ? "card" : "M-Pesa STK"} payment.</p>
+            <h1>Payment due at your scheduled visit</h1>
+            <p>The admin team will contact you to confirm a physical visit. Payment is collected in person at the arranged time.</p>
             {order && <p><strong>Order {order.order_number}</strong> · KES {order.total_amount.toLocaleString("en-KE")}</p>}
-
-            {showSandboxControls && (
-              <div className="sandbox-gateway-card">
-                <p className="section-kicker">Sandbox gateway test mode</p>
-                <p>No live M-Pesa/Flutterwave keys are configured in this environment. Simulate the gateway callback below:</p>
-                <div className="sandbox-gateway-actions">
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    disabled={simBusy}
-                    onClick={() => void simulateSandbox("paid")}
-                  >
-                    {simBusy ? "Processing…" : "Simulate Successful Payment"}
-                  </button>
-                  <button
-                    type="button"
-                    className="journey-cancel-request"
-                    disabled={simBusy}
-                    onClick={() => void simulateSandbox("failed")}
-                  >
-                    Simulate Payment Failure
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div style={{ marginTop: 18 }}>
               <Link href="/orders">Check My Orders</Link>
             </div>

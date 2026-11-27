@@ -21,7 +21,6 @@ Full-stack multi-division platform for **Youamy Enterprises Limited** (Gulf Recr
    NEXT_PUBLIC_SITE_URL=http://localhost:3000
    ADMIN_BOOTSTRAP_EMAIL=
    ADMIN_BOOTSTRAP_PASSWORD=
-   PAYMENT_SANDBOX_MODE=true
    ```
 
    The connection string contains your database password. Keep it server-only and never use a `NEXT_PUBLIC_` prefix.

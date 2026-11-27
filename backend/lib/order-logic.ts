@@ -159,7 +159,7 @@ export async function createCheckoutOrder(params: {
 
     await conn.execute(
       `INSERT INTO order_status_events (id, order_id, customer_id, status, note)
-       VALUES (?, ?, ?, 'Pending payment', 'Order created at checkout')`,
+       VALUES (?, ?, ?, 'Pending payment', 'Order submitted; admin will confirm the physical visit for payment')`,
       [crypto.randomUUID(), orderId, params.customerId],
     );
 

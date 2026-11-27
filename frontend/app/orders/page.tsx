@@ -101,7 +101,9 @@ export default function OrdersPage() {
               <footer>
                 <span>{new Date(order.created_at).toLocaleDateString("en-KE")}</span>
                 <strong>KES {order.total_amount.toLocaleString("en-KE")}</strong>
-                <span className={`order-payment ${order.payment_status}`}>{order.payment_status}</span>
+                <span className={`order-payment ${order.payment_status}`}>
+                  {order.payment_status === "pending" ? "Due at visit" : order.payment_status}
+                </span>
               </footer>
             </Link>
           ))}

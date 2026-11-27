@@ -183,7 +183,7 @@ export async function POST(request: Request) {
               href: `/orders/${ord.id}`,
               actionLabel: "View order / receipt",
             }],
-            suggestions: ["Go to My Orders", "M-Pesa checkout help", "Browse Shop"],
+            suggestions: ["Go to My Orders", "In-person payment details", "Browse Shop"],
           });
         }
       }
@@ -318,7 +318,7 @@ export async function POST(request: Request) {
           href: v.purchasable ? "/#shop" : "/#vehicles",
           actionLabel: v.purchasable ? "View in Shop" : "Book Inspection",
         })),
-        suggestions: ["Book Prado executive hire", "Inspect a vehicle in person", "M-Pesa checkout help", "Browse Real Estate"],
+        suggestions: ["Book Prado executive hire", "Inspect a vehicle in person", "In-person payment details", "Browse Real Estate"],
       });
     }
 
@@ -351,7 +351,7 @@ export async function POST(request: Request) {
       q.includes("sign in") || q.includes("login") || q.includes("account") || q.includes("order")
     ) {
       return NextResponse.json<ChatResponse>({
-        reply: "Online purchases, car hires, short stays, and sanitation packages support M-Pesa STK Push and Flutterwave Card checkout. Your cart stays saved locally and syncs once signed in, and paid orders include instant downloadable PDF receipts.",
+        reply: "Place your order online without paying online. The admin team will contact you to schedule a physical visit, where payment is made in person. Paid orders include downloadable PDF receipts.",
         cards: [
           { title: "Online Shop & Rentals", subtitle: "Add vehicles, short stays, or sanitation plans", href: "/#shop", actionLabel: "Browse Shop" },
           { title: "Your Cart", subtitle: "Review selected items before payment", href: "/cart", actionLabel: "Open Cart" },
@@ -385,7 +385,7 @@ export async function POST(request: Request) {
 
     // 10. Friendly default welcome / router
     return NextResponse.json<ChatResponse>({
-      reply: "Welcome to **Youamy Enterprises Limited**! I can help you explore Gulf recruitment jobs, check vehicle prices & Prado hire, browse Kilimani/Nyali real estate, estimate sanitation exhauster costs, pay via M-Pesa/Card, or track any `YEL-...` reference code. What would you like help with?",
+      reply: "Welcome to **Youamy Enterprises Limited**! I can help you explore Gulf recruitment jobs, check vehicle prices & Prado hire, browse Kilimani/Nyali real estate, arrange an order and in-person visit, estimate sanitation exhauster costs, or track any `YEL-...` reference code. What would you like help with?",
       cards: [
         { title: "Gulf Jobs & Recruitment", subtitle: "Saudi, Qatar, UAE, Oman & Kuwait openings", href: "/#jobs", actionLabel: "Explore Jobs" },
         { title: "Online Shop & Instant Bookings", subtitle: "Vehicles, Prado hire, short stays & sanitation", href: "/#shop", actionLabel: "Browse Shop" },
@@ -397,7 +397,7 @@ export async function POST(request: Request) {
         "Estimate septic tank quote",
         "Vehicles & Prado hire",
         "Short-stay apartments",
-        "M-Pesa checkout help",
+        "How do I pay for an order?",
       ],
     });
   } catch (error) {

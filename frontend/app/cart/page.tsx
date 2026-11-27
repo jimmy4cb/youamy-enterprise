@@ -130,9 +130,9 @@ export default function CartPage() {
             <aside className="cart-summary">
               <h2>Order summary</h2>
               <p><span>Items ({items.length})</span><strong>KES {total.toLocaleString("en-KE")}</strong></p>
-              <p><span>Payment</span><strong>M-Pesa / Card</strong></p>
-              <small>Booking durations, live stock, and exact totals are verified at checkout.</small>
-              <Link className="button button-primary" href="/checkout">Go to payment</Link>
+              <p><span>Payment</span><strong>At scheduled visit</strong></p>
+              <small>Our admin team will contact you to arrange a physical visit. Payment is collected in person.</small>
+              <Link className="button button-primary" href="/checkout">Continue to checkout</Link>
               <p className="cart-signin-note">Your cart stays preserved when signing in.</p>
             </aside>
           </div>

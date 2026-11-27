@@ -455,7 +455,7 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
   }
 
   async function confirmOrderPayment(order: ShopOrder) {
-    const ref = window.prompt(`Enter M-Pesa / Bank reference for ${order.order_number} (optional):`) || undefined;
+    const ref = window.prompt(`Enter the in-person payment reference for ${order.order_number} (optional):`) || undefined;
     setError("");
     const response = await fetch("/api/admin/shop/orders", {
       method: "PATCH",
@@ -1466,7 +1466,7 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8, gridColumn: "1 / -1" }}>
                 <input type="checkbox" name="purchasable" defaultChecked style={{ width: 18, height: 18 }} />
-                <span>Available for online cart &amp; M-Pesa/Card checkout</span>
+                <span>Available for order; payment is due at the scheduled physical visit</span>
               </label>
               <div className="admin-form-actions">
                 <button type="button" onClick={() => setShowProductForm(false)}>Cancel</button>

@@ -12,7 +12,7 @@ Set `ADMIN_BOOTSTRAP_EMAIL` and a fresh, unique `ADMIN_BOOTSTRAP_PASSWORD` (at l
 
 Customer accounts use the app's database-backed auth at `/sign-in`, not Supabase Auth. Sign-up and sign-in are available by default through `/api/shop/auth/register` and `/api/shop/auth/login`. For production, add the valid Transaction pooler connection string as the server-only `DATABASE_URL` in Vercel's Production environment, then redeploy. Do not copy the password into source control or a `NEXT_PUBLIC_` variable. Verify the deployed connection with `npm run db:check` before testing account creation and sign-in.
 
-Set `NEXT_PUBLIC_SITE_URL` to the canonical deployed site URL for Flutterwave redirect links. M-Pesa, Flutterwave, Resend, and Twilio credentials are optional integrations; keep their keys server-only.
+Set `NEXT_PUBLIC_SITE_URL` to the canonical deployed site URL. Checkout payments are collected in person after the admin team arranges a visit. M-Pesa and Flutterwave callbacks remain available only to reconcile transactions already in progress; keep their credentials server-only if those callbacks are still needed. Resend and Twilio credentials are optional integrations and should also remain server-only.
 
 ## Mapping existing catalog SQL
 

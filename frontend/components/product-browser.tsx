@@ -83,7 +83,7 @@ export default function ProductBrowser() {
             <p className="section-kicker">Browse and order online</p>
             <h2 id="shop-heading">Direct Purchase &amp; Instant Bookings</h2>
             <p className="section-description">
-              Confirmed pricing and live stock verified by Youamy Enterprises. Add directly to cart and check out via M-Pesa or Card.
+              Confirmed pricing and live stock verified by Youamy Enterprises. Add items to your cart, submit an order, and pay in person at your scheduled visit.
             </p>
           </div>
           <Link className="shop-cart-link" href="/cart">
