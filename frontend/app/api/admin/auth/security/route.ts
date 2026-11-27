@@ -6,7 +6,11 @@ import {
   logAdminActivity,
   verifyTotp,
 } from "@backend/lib/admin-auth";
-import { executeSql } from "@backend/lib/postgres";
+import { executeSql, queryOne, type RowDataPacket } from "@backend/lib/postgres";
+
+interface AdminPasswordRow extends RowDataPacket {
+  password_hash: string;
+}
 
 export async function GET() {
   const user = await getSessionUser();
@@ -25,7 +29,9 @@ export async function POST(request: Request) {
     action?: "generate_totp" | "enable_totp" | "disable_totp" | "change_password";
     secret?: string;
     code?: string;
+    currentPassword?: string;
     newPassword?: string;
+    confirmPassword?: string;
   } | null;
 
   if (!body?.action) {
@@ -70,8 +76,21 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "change_password") {
-    if (!body.newPassword || body.newPassword.length < 12) {
+    if (!body.currentPassword || !body.newPassword || !body.confirmPassword) {
+      return NextResponse.json({ error: "Complete all password fields." }, { status: 400 });
+    }
+    if (body.newPassword.length < 12) {
       return NextResponse.json({ error: "New password must be at least 12 characters." }, { status: 400 });
+    }
+    if (body.newPassword !== body.confirmPassword) {
+      return NextResponse.json({ error: "New passwords do not match." }, { status: 400 });
+    }
+    const account = await queryOne<AdminPasswordRow>(
+      `SELECT password_hash FROM admin_users WHERE id = ? LIMIT 1`,
+      [user.id],
+    );
+    if (!account || !(await bcrypt.compare(body.currentPassword, account.password_hash))) {
+      return NextResponse.json({ error: "Current password is incorrect." }, { status: 401 });
     }
     const hash = await bcrypt.hash(body.newPassword, 12);
     await executeSql(`UPDATE admin_users SET password_hash = ? WHERE id = ?`, [hash, user.id]);

@@ -206,6 +206,7 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [totpSecret, setTotpSecret] = useState("");
   const [totpCode, setTotpCode] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   const [settings, setSettings] = useState<Record<string, Record<string, unknown>>>({});
   const [activityLog, setActivityLog] = useState<Array<{ id: number; actor_name: string; action: string; entity_type: string; details: string; created_at: string }>>([]);
@@ -553,6 +554,46 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
     }
   }
 
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const currentPassword = String(data.get("currentPassword") || "");
+    const newPassword = String(data.get("newPassword") || "");
+    const confirmPassword = String(data.get("confirmPassword") || "");
+
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const response = await fetch("/api/admin/auth/security", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "change_password",
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || "Could not change your password.");
+        return;
+      }
+      form.reset();
+      setNotice("Password updated successfully.");
+    } catch {
+      setError("Network error while changing your password.");
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
+
   async function saveBusinessRules(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -851,7 +892,6 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
               </div>
               <div>
                 <strong>{user.name}</strong>
-                <span>{user.role.replaceAll("_", " ")}</span>
               </div>
             </div>
           </div>
@@ -1173,6 +1213,31 @@ export default function AdminDashboard({ user }: { user: { name: string; role: s
 
           {section === "staff" && (
             <div style={{ display: "grid", gap: 22 }}>
+              <section className="admin-listings" style={{ marginTop: 0 }}>
+                <div className="admin-listings-head">
+                  <div><p>Personal account protection</p><h2>Change password</h2></div>
+                </div>
+                <form className="admin-form" onSubmit={changePassword}>
+                  <label>
+                    Current password
+                    <input name="currentPassword" type="password" autoComplete="current-password" required />
+                  </label>
+                  <label>
+                    New password
+                    <input name="newPassword" type="password" autoComplete="new-password" minLength={12} required />
+                  </label>
+                  <label>
+                    Confirm new password
+                    <input name="confirmPassword" type="password" autoComplete="new-password" minLength={12} required />
+                  </label>
+                  <div className="admin-form-actions">
+                    <button type="submit" disabled={passwordSaving}>
+                      {passwordSaving ? "Updating…" : "Update password"}
+                    </button>
+                  </div>
+                </form>
+              </section>
+
               <section className="admin-listings" style={{ marginTop: 0 }}>
                 <div className="admin-listings-head">
                   <div><p>Personal account protection</p><h2>Two-factor authentication (TOTP)</h2></div>
