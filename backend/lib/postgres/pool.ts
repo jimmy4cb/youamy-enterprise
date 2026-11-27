@@ -8,14 +8,15 @@ declare global {
 }
 
 function getConnectionString(): string {
-  const connectionString = process.env.SUPABASE_DB_URL;
+  const connectionString =
+    process.env.DATABASE_URL?.trim() || process.env.SUPABASE_DB_URL?.trim();
   if (!connectionString) {
     throw new Error(
-      "Set SUPABASE_DB_URL to the PostgreSQL connection string from your Supabase project's Connect dialog.",
+      "Set DATABASE_URL or SUPABASE_DB_URL to the PostgreSQL connection string from your Supabase project's Connect dialog.",
     );
   }
   if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
-    throw new Error("SUPABASE_DB_URL must be a PostgreSQL connection string.");
+    throw new Error("DATABASE_URL or SUPABASE_DB_URL must be a PostgreSQL connection string.");
   }
   return connectionString;
 }

@@ -2,16 +2,16 @@ import bcrypt from "bcryptjs";
 import pg from "pg";
 
 async function bootstrapAdmin() {
-  const connectionString = process.env.SUPABASE_DB_URL;
+  const connectionString = process.env.DATABASE_URL?.trim() || process.env.SUPABASE_DB_URL?.trim();
   const name = process.env.ADMIN_BOOTSTRAP_NAME?.trim() || "Super Admin";
   const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
 
   if (!connectionString || !email || !password) {
-    throw new Error("Set SUPABASE_DB_URL, ADMIN_BOOTSTRAP_EMAIL, and ADMIN_BOOTSTRAP_PASSWORD.");
+    throw new Error("Set DATABASE_URL or SUPABASE_DB_URL, ADMIN_BOOTSTRAP_EMAIL, and ADMIN_BOOTSTRAP_PASSWORD.");
   }
   if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
-    throw new Error("SUPABASE_DB_URL must be a PostgreSQL connection string.");
+    throw new Error("DATABASE_URL or SUPABASE_DB_URL must be a PostgreSQL connection string.");
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("ADMIN_BOOTSTRAP_EMAIL must be a valid email address.");

@@ -1,18 +1,18 @@
 import pg from "pg";
 
 async function checkSupabase() {
-  const connectionString = process.env.SUPABASE_DB_URL?.trim();
+  const connectionString = process.env.DATABASE_URL?.trim() || process.env.SUPABASE_DB_URL?.trim();
   if (!connectionString) {
-    throw new Error("SUPABASE_DB_URL is missing. Copy the Transaction pooler URI into frontend/.env.");
+    throw new Error("DATABASE_URL or SUPABASE_DB_URL is missing. Copy the Transaction pooler URI into frontend/.env.");
   }
   if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
-    throw new Error("SUPABASE_DB_URL must be a PostgreSQL connection string.");
+    throw new Error("DATABASE_URL or SUPABASE_DB_URL must be a PostgreSQL connection string.");
   }
   try {
     const url = new URL(connectionString);
     if (!url.hostname || !url.username || !url.password) throw new Error();
   } catch {
-    throw new Error("SUPABASE_DB_URL must include a valid database host, username, and password.");
+    throw new Error("DATABASE_URL or SUPABASE_DB_URL must include a valid database host, username, and password.");
   }
 
   const pool = new pg.Pool({
